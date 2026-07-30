@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -41,7 +42,7 @@ export default function Feed() {
               </div>
 
               <div className="aura-progress" aria-hidden="true">
-                <span style={{ "--aura-progress": `${Math.min(92, 55 + index * 17)}%` } as React.CSSProperties} />
+                <span style={{ "--aura-progress": `${Math.min(92, 55 + index * 17)}%` } as CSSProperties} />
               </div>
 
               <div className="reel-gradient" />
