@@ -1,0 +1,5 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+const requestSchema=z.object({videoUrl:z.url(),caption:z.string().max(280).optional()});
+const analysisSchema=z.object({totalPoints:z.number().int().min(-1000).max(10000),confidence:z.number().int(),presence:z.number().int(),execution:z.number().int(),originality:z.number().int(),summary:z.string(),mainMoment:z.string(),contentSafe:z.boolean(),suspectedReupload:z.boolean(),reviewRequired:z.boolean()});
+export async function POST(request:Request){const parsed=requestSchema.safeParse(await request.json());if(!parsed.success)return NextResponse.json({error:'Dados inválidos',details:parsed.error.flatten()},{status:400});if(!process.env.GEMINI_API_KEY){return NextResponse.json(analysisSchema.parse({totalPoints:847,confidence:300,presence:220,execution:197,originality:130,summary:'Entrada confiante e bem executada.',mainMoment:'00:07',contentSafe:true,suspectedReupload:false,reviewRequired:false}));}return NextResponse.json({error:'O adaptador Gemini deve ser habilitado com o modelo definido em GEMINI_MODEL.'},{status:501});}

@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { Flame, Trophy, Users, Upload, UserRound } from "lucide-react";
+const links=[['Feed','/feed',Flame],['Ranking','/ranking',Trophy],['Farmar','/upload',Upload],['Ligas','/ligas',Users],['Perfil','/perfil/dolzaan',UserRound]] as const;
+export function Nav(){return <nav className="panel" style={{position:'sticky',top:16,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',marginBottom:24}}><Link href="/" style={{fontWeight:900,fontSize:22}}>AURA<span className="lime">RANK</span></Link><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{links.map(([label,href,Icon])=><Link key={href} href={href} className="btn-secondary" style={{padding:'9px 12px',borderRadius:12,display:'flex',gap:6,alignItems:'center'}}><Icon size={17}/><span>{label}</span></Link>)}</div></nav>}
