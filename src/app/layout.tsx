@@ -15,7 +15,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-dvh bg-black text-white antialiased">
         <Providers>
           <Nav />
-          <main>{children}</main>
+          <main className="app-shell">{children}</main>
         </Providers>
       </body>
     </html>
