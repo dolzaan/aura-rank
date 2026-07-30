@@ -1,13 +1,109 @@
 import Link from "next/link";
-import { Bookmark, Heart, MessageCircle, MoreHorizontal, Play, Send, Sparkles } from "lucide-react";
-import { posts, users } from '@/lib/mock';
+import {
+  Bookmark,
+  Heart,
+  MessageCircle,
+  MoreHorizontal,
+  Music2,
+  Play,
+  Send,
+  Sparkles,
+  Volume2,
+} from "lucide-react";
+import { posts } from "@/lib/mock";
 
-export default function Feed(){return <section className="fade-up" style={{maxWidth:720,margin:'0 auto'}}>
-  <header style={{display:'flex',justifyContent:'space-between',alignItems:'end',gap:16,margin:'10px 4px 20px'}}><div><span className="lime" style={{fontWeight:900,fontSize:12,letterSpacing:1.5}}>EM ALTA AGORA</span><h1 style={{fontSize:'clamp(34px,6vw,58px)',letterSpacing:'-.05em',margin:'5px 0'}}>Feed de aura</h1></div><Link href="/upload" className="btn"><Sparkles size={17}/>Farmar</Link></header>
-  <div style={{display:'flex',gap:14,overflowX:'auto',padding:'4px 2px 22px'}}>{users.map(user=><Link href={`/perfil/${user.username}`} key={user.username} style={{minWidth:70,textAlign:'center'}}><div className="story-ring" style={{width:66,height:66,margin:'0 auto 7px'}}><div className="story-inner" style={{width:60,height:60,fontWeight:900}}>{user.avatar}</div></div><span style={{fontSize:12}}>@{user.username}</span></Link>)}</div>
-  <div style={{display:'grid',gap:24}}>{posts.map((p,i)=><article className="panel" style={{overflow:'hidden'}} key={`${p.user.username}-${i}`}>
-    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px'}}><Link href={`/perfil/${p.user.username}`} style={{display:'flex',alignItems:'center',gap:10}}><div className="story-ring"><div className="story-inner" style={{width:38,height:38,fontSize:12,fontWeight:900}}>{p.user.avatar}</div></div><div><b>@{p.user.username}</b><div className="muted" style={{fontSize:11}}>há {i+1} min • analisado por IA</div></div></Link><MoreHorizontal size={20}/></div>
-    <div className="video-surface" style={{aspectRatio:'4/5',display:'grid',placeItems:'center',borderRadius:0}}><div className="glass" style={{width:70,height:70,borderRadius:999,display:'grid',placeItems:'center'}}><Play size={28} fill="white"/></div><div className="glass" style={{position:'absolute',left:14,bottom:14,borderRadius:999,padding:'9px 13px',fontWeight:950,color:'var(--lime)'}}>+{p.points.toLocaleString('pt-BR')} AURA</div></div>
-    <div style={{padding:'14px 16px 18px'}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><div style={{display:'flex',gap:17}}><Heart size={24}/><MessageCircle size={24}/><Send size={24}/></div><Bookmark size={24}/></div><p style={{lineHeight:1.5}}><b>@{p.user.username}</b> {p.caption}</p><div style={{display:'flex',gap:7,overflowX:'auto'}}>{p.tags.map(t=><span key={t} className="btn-secondary" style={{whiteSpace:'nowrap',padding:'7px 10px',borderRadius:999,fontSize:12}}>{t}</span>)}</div></div>
-  </article>)}</div>
-</section>}
+export default function Feed() {
+  return (
+    <section className="reels-page">
+      <header className="reels-topbar glass">
+        <Link href="/" className="reels-brand" aria-label="AuraRank">
+          AURA<span className="lime">RANK</span>
+        </Link>
+        <nav className="reels-tabs" aria-label="Filtro do feed">
+          <button type="button" className="reels-tab muted">Seguindo</button>
+          <button type="button" className="reels-tab reels-tab-active">Para você</button>
+        </nav>
+        <Link href="/upload" className="reels-create" aria-label="Publicar vídeo">
+          <Sparkles size={18} />
+          <span className="desktop-only">Farmar</span>
+        </Link>
+      </header>
+
+      <div className="reels-feed" aria-label="Feed de vídeos de aura">
+        {posts.map((post, index) => (
+          <article className="reel" key={`${post.user.username}-${index}`}>
+            <div className="reel-video video-surface">
+              <button className="reel-sound glass" type="button" aria-label="Ativar som">
+                <Volume2 size={18} />
+              </button>
+
+              <button className="reel-play glass" type="button" aria-label="Reproduzir vídeo">
+                <Play size={30} fill="currentColor" />
+              </button>
+
+              <div className="reel-score glass">
+                <Sparkles size={16} />
+                +{post.points.toLocaleString("pt-BR")} AURA
+              </div>
+
+              <div className="reel-gradient" />
+
+              <div className="reel-content">
+                <div className="reel-copy">
+                  <Link href={`/perfil/${post.user.username}`} className="reel-author">
+                    <span className="story-ring reel-avatar">
+                      <span className="story-inner">{post.user.avatar}</span>
+                    </span>
+                    <span>
+                      <strong>@{post.user.username}</strong>
+                      <small>Seguir</small>
+                    </span>
+                  </Link>
+
+                  <p>{post.caption}</p>
+
+                  <div className="reel-music">
+                    <Music2 size={15} />
+                    <span>Som original • @{post.user.username}</span>
+                  </div>
+
+                  <div className="reel-tags">
+                    {post.tags.slice(0, 3).map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+
+                <aside className="reel-actions" aria-label="Ações do vídeo">
+                  <Link href={`/perfil/${post.user.username}`} className="reel-profile-action" aria-label={`Perfil de ${post.user.username}`}>
+                    {post.user.avatar}
+                    <span>+</span>
+                  </Link>
+                  <button type="button" aria-label="Curtir">
+                    <Heart size={29} />
+                    <span>{index === 0 ? "12,8 mil" : "8.421"}</span>
+                  </button>
+                  <button type="button" aria-label="Comentar">
+                    <MessageCircle size={29} />
+                    <span>{index === 0 ? "684" : "392"}</span>
+                  </button>
+                  <button type="button" aria-label="Compartilhar">
+                    <Send size={28} />
+                    <span>{index === 0 ? "1.204" : "829"}</span>
+                  </button>
+                  <button type="button" aria-label="Salvar">
+                    <Bookmark size={28} />
+                    <span>Salvar</span>
+                  </button>
+                  <button type="button" aria-label="Mais opções">
+                    <MoreHorizontal size={27} />
+                  </button>
+                </aside>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
