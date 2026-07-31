@@ -118,6 +118,7 @@ export async function GET(request: Request) {
       return {
         id: video.id,
         videoUrl: playableVideoUrl,
+        fallbackVideoUrl: `/api/videos/${video.id}/media`,
         caption: video.caption || "Um novo momento de aura.",
         points: video.totalPoints || 0,
         aiSummary:

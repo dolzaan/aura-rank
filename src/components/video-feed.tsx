@@ -43,6 +43,7 @@ type FeedPost = {
   caption: string;
   aiSummary: string;
   videoUrl: string;
+  fallbackVideoUrl: string;
   tags: string[];
   commentCount: number;
   likeCount: number;
@@ -251,6 +252,27 @@ export function VideoFeed({ className }: { className?: string }) {
       video.pause();
       setPausedVideoId(videoId);
     }
+  }
+
+  function recoverVideoPlayback(post: FeedPost) {
+    const video = videoRefs.current.get(post.id);
+    if (!video || video.dataset.recoveryAttempted === "true") return false;
+
+    video.dataset.recoveryAttempted = "true";
+    setVideoBuffering(post.id, true);
+    updatePost(post.id, { videoUrl: post.fallbackVideoUrl });
+    video.src = post.fallbackVideoUrl;
+    video.load();
+    video.muted = isMuted;
+    if (post.id === activeVideoId) {
+      void video.play().catch((error) => {
+        console.error("[feed] Falha na recuperação do vídeo", {
+          videoId: post.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+    return true;
   }
 
   function toggleMute(videoId: string) {
@@ -580,16 +602,33 @@ export function VideoFeed({ className }: { className?: string }) {
                 autoPlay={index === activeIndex}
                 preload={index === activeIndex ? "metadata" : "none"}
                 onLoadStart={() => setVideoBuffering(post.id, true)}
+                onLoadedMetadata={(event) => {
+                  event.currentTarget.defaultPlaybackRate = 1;
+                  event.currentTarget.playbackRate = 1;
+                }}
                 onCanPlay={() => setVideoBuffering(post.id, false)}
                 onPlaying={() => {
                   setVideoBuffering(post.id, false);
                   setPausedVideoId(null);
                 }}
                 onWaiting={() => setVideoBuffering(post.id, true)}
+                onStalled={() => {
+                  if (index === activeIndex) recoverVideoPlayback(post);
+                }}
                 onPause={() => setPausedVideoId(post.id)}
-                onError={() => {
+                onError={(event) => {
                   setVideoBuffering(post.id, false);
-                  if (index === activeIndex) {
+                  const mediaError = event.currentTarget.error;
+                  console.error("[feed] Erro ao reproduzir vídeo", {
+                    videoId: post.id,
+                    code: mediaError?.code,
+                    message: mediaError?.message,
+                    source: event.currentTarget.currentSrc,
+                  });
+                  if (
+                    index === activeIndex &&
+                    !recoverVideoPlayback(post)
+                  ) {
                     showToast("Não foi possível reproduzir este vídeo");
                   }
                 }}
