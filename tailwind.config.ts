@@ -5,14 +5,15 @@ const config: Config = {
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/@spectre-ui/core/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
       colors: {
         aura: "#c7ff32",
         surface: "#111111",
-        "surface-muted": "#181818",
+      },
+      boxShadow: {
+        aura: "0 0 50px rgba(199,255,50,.16)",
       },
     },
   },
