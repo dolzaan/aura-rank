@@ -71,7 +71,10 @@ export function Nav() {
         className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-50 grid grid-cols-5 rounded-[20px] border border-white/10 bg-[#080808]/92 p-1.5 shadow-2xl shadow-black/80 backdrop-blur-2xl md:hidden"
       >
         {links.map(([label, href, Icon]) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active =
+            (pathname === "/" && href === "/feed") ||
+            pathname === href ||
+            pathname.startsWith(`${href}/`);
           return (
             <Link
               key={href}
