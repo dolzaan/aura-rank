@@ -23,10 +23,15 @@ export async function POST(request: Request) {
     const response = await handleUploadPresigned({
       body,
       request,
-      getSignedToken: async (pathname) => {
+      getSignedToken: async (pathname, _clientPayload, multipart) => {
         const storeId = process.env.BLOB_STORE_ID;
         if (!storeId) {
           throw new Error("Armazenamento Blob não conectado ao projeto.");
+        }
+        if (multipart) {
+          throw new Error(
+            "Upload multipart não é aceito para arquivos de até 50 MB.",
+          );
         }
         const isVideo = pathname.startsWith(`videos/${session.user.id}/`);
         const isAvatar = pathname.startsWith(`avatars/${session.user.id}/`);

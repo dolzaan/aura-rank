@@ -100,13 +100,17 @@ export default function Upload() {
     try {
       setPhase("Enviando vídeo...");
       if (!session?.user?.id) throw new Error("Entre para publicar.");
+
+      const rawExtension = file.name.split(".").pop()?.toLowerCase() || "mp4";
+      const extension = rawExtension.replace(/[^a-z0-9]/g, "") || "mp4";
+      const pathname = `videos/${session.user.id}/${crypto.randomUUID()}.${extension}`;
       const blob = await uploadPresigned(
-        `videos/${session.user.id}/${file.name}`,
+        pathname,
         file,
         {
           access: "private",
           handleUploadUrl: "/api/upload",
-          multipart: file.size > 5 * 1024 * 1024,
+          contentType: file.type || "video/mp4",
           onUploadProgress: ({ percentage }) => setProgress(percentage),
         },
       );
@@ -131,10 +135,12 @@ export default function Upload() {
       setResult(payload);
       setPhase("");
     } catch (caught) {
+      console.error("[upload] Falha ao enviar ou analisar vídeo:", caught);
+      const message = caught instanceof Error ? caught.message : "";
       setError(
-        caught instanceof Error
-          ? caught.message
-          : "Não foi possível enviar o vídeo.",
+        /network|failed to fetch|service.*available/i.test(message)
+          ? "Não foi possível conectar ao armazenamento. Verifique sua conexão e tente novamente."
+          : message || "Não foi possível enviar o vídeo.",
       );
     } finally {
       setLoading(false);
