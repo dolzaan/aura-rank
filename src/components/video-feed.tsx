@@ -173,6 +173,7 @@ export function VideoFeed({ className }: { className?: string }) {
   const [feedLoadingMore, setFeedLoadingMore] = useState(false);
   const [feedHasMore, setFeedHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [feedRevision, setFeedRevision] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null);
@@ -226,7 +227,7 @@ export function VideoFeed({ className }: { className?: string }) {
     return () => {
       controller.abort();
     };
-  }, [mode]);
+  }, [mode, feedRevision]);
 
   useEffect(
     () => () => {
@@ -613,6 +614,9 @@ export function VideoFeed({ className }: { className?: string }) {
                 if (item !== mode) {
                   setFeedLoading(true);
                   setMode(item);
+                } else {
+                  setFeedLoading(true);
+                  setFeedRevision((current) => current + 1);
                 }
               }}
               className={clsx(

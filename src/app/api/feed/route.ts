@@ -61,18 +61,58 @@ export async function GET(request: Request) {
         AND video."videoUrl" LIKE 'https://%'
         AND author."username" IS NOT NULL
         ${followingFilter}
-      ORDER BY
-        CASE WHEN video."userId" = ${currentUserId} THEN 1 ELSE 0 END,
-        CASE WHEN EXISTS (
-          SELECT 1 FROM "VideoLike" AS liked
-          WHERE liked."videoId" = video."id"
-            AND liked."userId" = ${currentUserId}
+      ORDER BY (
+        -- Discovery remains the dominant signal, so every session feels new.
+        (
+          ('x' || substr(
+            md5(CAST(${seed} AS TEXT) || ':' || video."id"),
+            1,
+            8
+          ))::bit(32)::bigint / 4294967295.0
+        ) * 0.70
+        + CASE WHEN EXISTS (
+          SELECT 1 FROM "Follow" AS affinity_follow
+          WHERE affinity_follow."followingId" = video."userId"
+            AND affinity_follow."followerId" = ${currentUserId}
+        ) THEN 0.10 ELSE 0 END
+        + CASE WHEN EXISTS (
+          SELECT 1
+          FROM "VideoLike" AS affinity_like
+          INNER JOIN "VideoSubmission" AS liked_video
+            ON liked_video."id" = affinity_like."videoId"
+          WHERE affinity_like."userId" = ${currentUserId}
+            AND liked_video."userId" = video."userId"
+        ) THEN 0.07 ELSE 0 END
+        + LEAST(
+          0.08,
+          LN(
+            1
+            + (SELECT COUNT(*) FROM "VideoLike" AS popularity_like
+               WHERE popularity_like."videoId" = video."id") * 2
+            + (SELECT COUNT(*) FROM "Comment" AS popularity_comment
+               WHERE popularity_comment."videoId" = video."id")
+            + (SELECT COUNT(*) FROM "ShareEvent" AS popularity_share
+               WHERE popularity_share."videoId" = video."id") * 3
+          ) / 30.0
+        )
+        + GREATEST(
+          0.0,
+          0.07 - EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - video."createdAt"))
+            / 86400.0 * 0.002
+        )
+        - CASE WHEN EXISTS (
+          SELECT 1 FROM "VideoLike" AS consumed_like
+          WHERE consumed_like."videoId" = video."id"
+            AND consumed_like."userId" = ${currentUserId}
         ) OR EXISTS (
-          SELECT 1 FROM "SavedVideo" AS saved
-          WHERE saved."videoId" = video."id"
-            AND saved."userId" = ${currentUserId}
-        ) THEN 1 ELSE 0 END,
-        md5(CAST(${seed} AS TEXT) || ':' || video."id")
+          SELECT 1 FROM "SavedVideo" AS consumed_save
+          WHERE consumed_save."videoId" = video."id"
+            AND consumed_save."userId" = ${currentUserId}
+        ) THEN 0.14 ELSE 0 END
+        - CASE WHEN video."userId" = ${currentUserId}
+          THEN 0.08 ELSE 0 END
+      ) DESC,
+      md5(video."id" || ':' || CAST(${seed} AS TEXT))
       OFFSET ${cursor}
       LIMIT ${FEED_PAGE_SIZE + 1}
     `,
