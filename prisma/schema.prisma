@@ -1,76 +1,127 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
 
-enum SubmissionStatus { UPLOADING PENDING ANALYZING APPROVED REJECTED REVIEW }
-enum FriendshipStatus { PENDING ACCEPTED BLOCKED }
-enum LeagueRole { OWNER ADMIN MEMBER }
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+enum SubmissionStatus {
+  UPLOADING
+  PENDING
+  ANALYZING
+  APPROVED
+  REJECTED
+  REVIEW
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum LeagueRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
 
 model User {
-  id String @id @default(cuid())
-  email String @unique
-  name String?
-  image String?
-  username String? @unique
-  bio String? @db.VarChar(160)
-  auraBalance Int @default(0)
-  createdAt DateTime @default(now())
-  submissions VideoSubmission[]
-  auraTransactions AuraTransaction[]
-  leagueMemberships LeagueMember[]
-  sentFriendships Friendship[] @relation("FriendshipRequester")
-  receivedFriendships Friendship[] @relation("FriendshipAddressee")
+  id                  String            @id @default(cuid())
+  email               String            @unique
+  name                String?
+  image               String?
+  username            String?           @unique
+  bio                 String?           @db.VarChar(160)
+  auraBalance         Int               @default(0)
+  createdAt           DateTime          @default(now())
+  submissions         VideoSubmission[]
+  comments            Comment[]
+  auraTransactions    AuraTransaction[]
+  leagueMemberships   LeagueMember[]
+  sentFriendships     Friendship[]      @relation("FriendshipRequester")
+  receivedFriendships Friendship[]      @relation("FriendshipAddressee")
 }
+
 model VideoSubmission {
-  id String @id @default(cuid())
-  userId String
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
-  videoUrl String
-  caption String? @db.VarChar(280)
-  status SubmissionStatus @default(PENDING)
-  totalPoints Int?
-  analysis Json?
-  createdAt DateTime @default(now())
+  id               String            @id @default(cuid())
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoUrl         String
+  caption          String?           @db.VarChar(280)
+  status           SubmissionStatus  @default(PENDING)
+  totalPoints      Int?
+  analysis         Json?
+  createdAt        DateTime          @default(now())
+  comments         Comment[]
   auraTransactions AuraTransaction[]
+
   @@index([status, createdAt])
   @@index([userId, createdAt])
 }
+
+model Comment {
+  id        String          @id @default(cuid())
+  videoId   String
+  userId    String
+  parentId  String?
+  body      String          @db.VarChar(500)
+  createdAt DateTime        @default(now())
+  video     VideoSubmission @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]       @relation("CommentReplies")
+
+  @@index([videoId, createdAt])
+  @@index([parentId, createdAt])
+}
+
 model AuraTransaction {
-  id String @id @default(cuid())
-  userId String
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  id           String           @id @default(cuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   submissionId String?
-  submission VideoSubmission? @relation(fields:[submissionId], references:[id], onDelete:SetNull)
-  amount Int
-  reason String
-  createdAt DateTime @default(now())
+  submission   VideoSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  amount       Int
+  reason       String
+  createdAt    DateTime         @default(now())
+
   @@index([userId, createdAt])
 }
+
 model Friendship {
-  id String @id @default(cuid())
+  id          String           @id @default(cuid())
   requesterId String
   addresseeId String
-  requester User @relation("FriendshipRequester", fields:[requesterId], references:[id], onDelete:Cascade)
-  addressee User @relation("FriendshipAddressee", fields:[addresseeId], references:[id], onDelete:Cascade)
-  status FriendshipStatus @default(PENDING)
-  createdAt DateTime @default(now())
+  requester   User             @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User             @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
   @@unique([requesterId, addresseeId])
 }
+
 model League {
-  id String @id @default(cuid())
-  name String
-  slug String @unique
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
   description String?
-  isPrivate Boolean @default(true)
-  inviteCode String @unique @default(cuid())
-  createdAt DateTime @default(now())
-  members LeagueMember[]
+  isPrivate   Boolean        @default(true)
+  inviteCode  String         @unique @default(cuid())
+  createdAt   DateTime       @default(now())
+  members     LeagueMember[]
 }
+
 model LeagueMember {
   leagueId String
-  userId String
-  role LeagueRole @default(MEMBER)
-  joinedAt DateTime @default(now())
-  league League @relation(fields:[leagueId], references:[id], onDelete:Cascade)
-  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
-  @@id([leagueId,userId])
+  userId   String
+  role     LeagueRole @default(MEMBER)
+  joinedAt DateTime   @default(now())
+  league   League     @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([leagueId, userId])
 }
