@@ -17,9 +17,12 @@ import {
   LoaderCircle,
   MessageCircle,
   Plus,
+  Play,
   Send,
   Share2,
   Sparkles,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
@@ -133,9 +136,16 @@ export function VideoFeed({ className }: { className?: string }) {
   const [commentText, setCommentText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [auraBurst, setAuraBurst] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const [pausedVideoId, setPausedVideoId] = useState<string | null>(null);
+  const [bufferingVideoIds, setBufferingVideoIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const commentInputRef = useRef<HTMLInputElement>(null);
+  const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const activeVideoId = feedPosts[activeIndex]?.id || null;
 
   useEffect(() => {
     let cancelled = false;
@@ -174,6 +184,35 @@ export function VideoFeed({ className }: { className?: string }) {
     [],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+    for (const [videoId, video] of videoRefs.current) {
+      if (videoId !== activeVideoId) {
+        video.pause();
+        continue;
+      }
+
+      video.muted = isMuted;
+      void video.play().then(
+        () => {
+          if (!cancelled) setPausedVideoId(null);
+        },
+        () => {
+          if (cancelled) return;
+          video.muted = true;
+          setIsMuted(true);
+          void video.play().then(
+            () => setPausedVideoId(null),
+            () => setPausedVideoId(videoId),
+          );
+        },
+      );
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeVideoId, isMuted]);
+
   const activePost = useMemo(
     () => feedPosts.find((post) => post.id === commentVideoId) || null,
     [commentVideoId, feedPosts],
@@ -189,6 +228,47 @@ export function VideoFeed({ className }: { className?: string }) {
     setFeedPosts((current) =>
       current.map((post) => (post.id === postId ? { ...post, ...update } : post)),
     );
+  }
+
+  function setVideoBuffering(videoId: string, buffering: boolean) {
+    setBufferingVideoIds((current) => {
+      const next = new Set(current);
+      if (buffering) next.add(videoId);
+      else next.delete(videoId);
+      return next;
+    });
+  }
+
+  function togglePlayback(videoId: string) {
+    const video = videoRefs.current.get(videoId);
+    if (!video) return;
+    if (video.paused) {
+      void video.play().then(
+        () => setPausedVideoId(null),
+        () => setPausedVideoId(videoId),
+      );
+    } else {
+      video.pause();
+      setPausedVideoId(videoId);
+    }
+  }
+
+  function toggleMute(videoId: string) {
+    const nextMuted = !isMuted;
+    const video = videoRefs.current.get(videoId);
+    setIsMuted(nextMuted);
+    if (video) {
+      video.muted = nextMuted;
+      video.volume = 1;
+      if (!nextMuted) {
+        void video.play().catch(() => {
+          video.muted = true;
+          setIsMuted(true);
+          showToast("O navegador bloqueou o áudio. Toque novamente.");
+        });
+      }
+    }
+    showToast(nextMuted ? "Som desativado" : "Som ativado");
   }
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
@@ -484,15 +564,73 @@ export function VideoFeed({ className }: { className?: string }) {
               className="relative h-full min-h-0 snap-start snap-always overflow-hidden bg-zinc-950"
             >
               <video
+                ref={(node) => {
+                  if (node) videoRefs.current.set(post.id, node);
+                  else videoRefs.current.delete(post.id);
+                }}
                 src={post.videoUrl}
-                muted
+                muted={isMuted}
                 playsInline
                 loop
                 autoPlay={index === activeIndex}
-                preload={Math.abs(index - activeIndex) <= 1 ? "metadata" : "none"}
+                preload={
+                  index === activeIndex
+                    ? "auto"
+                    : Math.abs(index - activeIndex) === 1
+                      ? "metadata"
+                      : "none"
+                }
+                onLoadStart={() => setVideoBuffering(post.id, true)}
+                onCanPlay={() => setVideoBuffering(post.id, false)}
+                onPlaying={() => {
+                  setVideoBuffering(post.id, false);
+                  setPausedVideoId(null);
+                }}
+                onWaiting={() => setVideoBuffering(post.id, true)}
+                onPause={() => setPausedVideoId(post.id)}
+                onError={() => {
+                  setVideoBuffering(post.id, false);
+                  if (index === activeIndex) {
+                    showToast("Não foi possível reproduzir este vídeo");
+                  }
+                }}
                 className="absolute inset-0 size-full object-cover"
               />
+              <button
+                type="button"
+                onClick={() => togglePlayback(post.id)}
+                aria-label={
+                  pausedVideoId === post.id ? "Reproduzir vídeo" : "Pausar vídeo"
+                }
+                className="absolute inset-0 z-10 cursor-pointer bg-transparent"
+              />
               <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/95" />
+
+              <AnimatePresence>
+                {bufferingVideoIds.has(post.id) ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="pointer-events-none absolute inset-0 z-[15] grid place-items-center"
+                  >
+                    <span className="grid size-14 place-items-center rounded-full bg-black/45 backdrop-blur-md">
+                      <LoaderCircle className="animate-spin text-aura" size={26} />
+                    </span>
+                  </motion.div>
+                ) : pausedVideoId === post.id ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.1 }}
+                    className="pointer-events-none absolute inset-0 z-[15] grid place-items-center"
+                  >
+                    <span className="grid size-16 place-items-center rounded-full bg-black/50 backdrop-blur-md">
+                      <Play className="ml-1 text-white" fill="white" size={28} />
+                    </span>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
 
               <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+4.5rem)] z-20 rounded-xl border border-aura/25 bg-black/60 px-3 py-2 backdrop-blur-xl md:top-20">
                 <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400">
@@ -574,6 +712,17 @@ export function VideoFeed({ className }: { className?: string }) {
                       className="size-11 border-2 border-white"
                     />
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => toggleMute(post.id)}
+                    aria-label={isMuted ? "Ativar som" : "Silenciar vídeo"}
+                    className={actionClass}
+                  >
+                    {isMuted ? <VolumeX size={27} /> : <Volume2 size={27} />}
+                    <span className="text-[9px] font-bold">
+                      {isMuted ? "Mudo" : "Som"}
+                    </span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => void interact(post, "like")}

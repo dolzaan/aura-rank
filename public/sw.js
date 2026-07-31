@@ -1,4 +1,4 @@
-const CACHE_VERSION = "auratok-v5";
+const CACHE_VERSION = "auratok-v7";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const APP_SHELL = [

@@ -24,11 +24,12 @@ export async function GET(
     access: "private",
     headers: range ? { Range: range } : undefined,
   });
-  if (!result || result.statusCode !== 200) {
+  if (!result || ![200, 206].includes(result.statusCode)) {
     return new Response(null, { status: 404 });
   }
   const headers = new Headers();
   result.headers.forEach((value, key) => headers.set(key, value));
-  headers.set("Cache-Control", "private, max-age=3600");
-  return new Response(result.stream, { status: 200, headers });
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Cache-Control", "private, max-age=3600, stale-while-revalidate=86400");
+  return new Response(result.stream, { status: result.statusCode, headers });
 }
