@@ -24,33 +24,68 @@ const demos = {
 } as const;
 
 export async function ensureVideo(videoId: string) {
-  const existing = await prisma.videoSubmission.findUnique({
+  let video = await prisma.videoSubmission.findUnique({
     where: { id: videoId },
   });
-  if (existing) return existing;
 
   const demo = demos[videoId as keyof typeof demos];
-  if (!demo) return null;
+  if (!video && !demo) return null;
 
-  const user = await prisma.user.upsert({
-    where: { email: demo.email },
-    update: {},
-    create: {
-      email: demo.email,
-      name: demo.name,
-      username: demo.username,
-    },
-  });
+  if (!video && demo) {
+    const user = await prisma.user.upsert({
+      where: { email: demo.email },
+      update: {},
+      create: {
+        email: demo.email,
+        name: demo.name,
+        username: demo.username,
+      },
+    });
+    video = await prisma.videoSubmission.create({
+      data: {
+        id: videoId,
+        userId: user.id,
+        videoUrl: demo.videoUrl,
+        caption: demo.caption,
+        totalPoints: demo.totalPoints,
+        status: "APPROVED",
+        analysis: { publicCaption: demo.summary, summary: demo.summary },
+      },
+    });
+  }
 
-  return prisma.videoSubmission.create({
-    data: {
-      id: videoId,
-      userId: user.id,
-      videoUrl: demo.videoUrl,
-      caption: demo.caption,
-      totalPoints: demo.totalPoints,
-      status: "APPROVED",
-      analysis: { publicCaption: demo.summary, summary: demo.summary },
-    },
-  });
+  if (videoId === "demo-skate-dolzaan") {
+    const nina = await prisma.user.upsert({
+      where: { email: "nina@auratok.app" },
+      update: {},
+      create: { email: "nina@auratok.app", name: "Nina Costa", username: "nina" },
+    });
+    const mari = await prisma.user.upsert({
+      where: { email: "mari@auratok.app" },
+      update: {},
+      create: { email: "mari@auratok.app", name: "Mari Alves", username: "mari" },
+    });
+    await prisma.comment.upsert({
+      where: { id: "demo-comment-skate-nina" },
+      update: {},
+      create: {
+        id: "demo-comment-skate-nina",
+        videoId,
+        userId: nina.id,
+        body: "Isso foi muito aura 🔥",
+      },
+    });
+    await prisma.comment.upsert({
+      where: { id: "demo-comment-skate-mari" },
+      update: {},
+      create: {
+        id: "demo-comment-skate-mari",
+        videoId,
+        userId: mari.id,
+        body: "A saída sem olhar ganhou tudo.",
+      },
+    });
+  }
+
+  return video;
 }
