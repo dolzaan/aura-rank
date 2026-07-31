@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
+import { ServiceWorkerRegister } from "@/components/service-worker-register";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -17,11 +19,30 @@ export const metadata: Metadata = {
   description:
     "A rede social onde presença vira reputação. Poste, inspire e acumule aura.",
   applicationName: "AuraTok",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "AuraTok",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#050505",
   colorScheme: "dark",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -32,6 +53,8 @@ export default function RootLayout({
       <body className="min-h-dvh bg-[#050505] text-white antialiased">
         <Nav />
         <main className="app-shell">{children}</main>
+        <PwaInstallPrompt />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

@@ -32,6 +32,22 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
 }
 
+@media (display-mode: standalone) {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    user-select: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+  }
+}
+
 ::selection {
   background: #c7ff32;
   color: #050505;
