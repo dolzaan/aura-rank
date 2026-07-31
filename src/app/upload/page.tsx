@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { upload } from "@vercel/blob/client";
+import { uploadPresigned } from "@vercel/blob/client";
 import {
   AlertCircle,
   Check,
@@ -97,7 +97,7 @@ export default function Upload() {
     setProgress(0);
     try {
       setPhase("Enviando vídeo...");
-      const blob = await upload(`videos/${file.name}`, file, {
+      const blob = await uploadPresigned(`videos/${file.name}`, file, {
         access: "public",
         handleUploadUrl: "/api/upload",
         multipart: file.size > 5 * 1024 * 1024,
