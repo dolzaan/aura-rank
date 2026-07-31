@@ -560,6 +560,11 @@ export function VideoFeed({ className }: { className?: string }) {
             <article
               id={`video-${post.id}`}
               key={post.id}
+              onClick={(event) => {
+                const target = event.target as Element;
+                if (target.closest("a, button, input, textarea, select")) return;
+                togglePlayback(post.id);
+              }}
               onDoubleClick={() => void interact(post, "like")}
               className="relative h-full min-h-0 snap-start snap-always overflow-hidden bg-zinc-950"
             >
@@ -573,13 +578,7 @@ export function VideoFeed({ className }: { className?: string }) {
                 playsInline
                 loop
                 autoPlay={index === activeIndex}
-                preload={
-                  index === activeIndex
-                    ? "auto"
-                    : Math.abs(index - activeIndex) === 1
-                      ? "metadata"
-                      : "none"
-                }
+                preload={index === activeIndex ? "metadata" : "none"}
                 onLoadStart={() => setVideoBuffering(post.id, true)}
                 onCanPlay={() => setVideoBuffering(post.id, false)}
                 onPlaying={() => {
@@ -594,17 +593,9 @@ export function VideoFeed({ className }: { className?: string }) {
                     showToast("Não foi possível reproduzir este vídeo");
                   }
                 }}
-                className="absolute inset-0 size-full object-cover"
+                className="absolute inset-0 size-full cursor-pointer object-cover"
               />
-              <button
-                type="button"
-                onClick={() => togglePlayback(post.id)}
-                aria-label={
-                  pausedVideoId === post.id ? "Reproduzir vídeo" : "Pausar vídeo"
-                }
-                className="absolute inset-0 z-10 cursor-pointer bg-transparent"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/95" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/95" />
 
               <AnimatePresence>
                 {bufferingVideoIds.has(post.id) ? (

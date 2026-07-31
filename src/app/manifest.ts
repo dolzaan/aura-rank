@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "AuraTok",
     description:
       "O feed de vídeos onde presença vira reputação. Poste, inspire e acumule aura.",
-    start_url: "/",
+    start_url: "/feed",
     scope: "/",
     display: "standalone",
     orientation: "portrait-primary",

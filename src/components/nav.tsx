@@ -22,8 +22,8 @@ export function Nav() {
     ...baseLinks,
     ["Perfil", username ? `/perfil/${username}` : "/onboarding", UserRound] as const,
   ];
+  const isLandingPage = pathname === "/";
   if (
-    pathname === "/" ||
     pathname.startsWith("/entrar") ||
     pathname.startsWith("/cadastro") ||
     pathname.startsWith("/onboarding")
@@ -33,7 +33,12 @@ export function Nav() {
 
   return (
     <>
-      <header className="fixed inset-x-0 top-0 z-50 hidden border-b border-white/[.07] bg-[#050505]/90 backdrop-blur-2xl md:block">
+      <header
+        className={clsx(
+          "fixed inset-x-0 top-0 z-50 hidden border-b border-white/[.07] bg-[#050505]/90 backdrop-blur-2xl md:block",
+          isLandingPage && "md:hidden",
+        )}
+      >
         <div className="mx-auto flex h-[76px] max-w-[1240px] items-center justify-between px-6">
           <Link href="/" aria-label="AuraTok — início">
             <BrandLogo className="text-[21px]" markClassName="size-8" />
@@ -81,7 +86,7 @@ export function Nav() {
 
       <nav
         aria-label="Navegação principal mobile"
-        className="fixed inset-x-0 bottom-0 z-50 grid min-h-[64px] grid-cols-5 border-t border-white/10 bg-[#080808]/[.98] px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_rgba(0,0,0,.42)] backdrop-blur-2xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-[100] grid min-h-[calc(64px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-white/10 bg-[#080808]/[.98] px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_rgba(0,0,0,.42)] backdrop-blur-2xl [transform:translateZ(0)] md:hidden"
       >
         {links.map(([label, href, Icon]) => {
           const active =
