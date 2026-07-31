@@ -3,6 +3,7 @@
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { uploadPresigned } from "@vercel/blob/client";
+import { useSession } from "next-auth/react";
 import {
   AlertCircle,
   Check,
@@ -33,6 +34,7 @@ type AnalysisResult = {
 };
 
 export default function Upload() {
+  const { data: session } = useSession();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [duration, setDuration] = useState<number | null>(null);
@@ -97,12 +99,17 @@ export default function Upload() {
     setProgress(0);
     try {
       setPhase("Enviando vídeo...");
-      const blob = await uploadPresigned(`videos/${file.name}`, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload",
-        multipart: file.size > 5 * 1024 * 1024,
-        onUploadProgress: ({ percentage }) => setProgress(percentage),
-      });
+      if (!session?.user?.id) throw new Error("Entre para publicar.");
+      const blob = await uploadPresigned(
+        `videos/${session.user.id}/${file.name}`,
+        file,
+        {
+          access: "private",
+          handleUploadUrl: "/api/upload",
+          multipart: file.size > 5 * 1024 * 1024,
+          onUploadProgress: ({ percentage }) => setProgress(percentage),
+        },
+      );
 
       setPhase("Gemini está assistindo e avaliando...");
       const response = await fetch("/api/analyze", {

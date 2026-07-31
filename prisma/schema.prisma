@@ -36,10 +36,18 @@ model User {
   image               String?
   username            String?           @unique
   bio                 String?           @db.VarChar(160)
+  passwordHash        String?
+  emailVerified       DateTime?
+  isDemo              Boolean           @default(false)
   auraBalance         Int               @default(0)
   createdAt           DateTime          @default(now())
   submissions         VideoSubmission[]
   comments            Comment[]
+  likes               VideoLike[]
+  savedVideos         SavedVideo[]
+  shares              ShareEvent[]
+  following           Follow[]          @relation("FollowFollower")
+  followers           Follow[]          @relation("FollowFollowing")
   auraTransactions    AuraTransaction[]
   leagueMemberships   LeagueMember[]
   sentFriendships     Friendship[]      @relation("FriendshipRequester")
@@ -55,11 +63,62 @@ model VideoSubmission {
   status           SubmissionStatus  @default(PENDING)
   totalPoints      Int?
   analysis         Json?
+  isDemo           Boolean           @default(false)
+  sourceUrl        String?
+  sourceName       String?
   createdAt        DateTime          @default(now())
   comments         Comment[]
+  likes            VideoLike[]
+  savedBy          SavedVideo[]
+  shares           ShareEvent[]
   auraTransactions AuraTransaction[]
 
   @@index([status, createdAt])
+  @@index([userId, createdAt])
+}
+
+model VideoLike {
+  userId    String
+  videoId   String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     VideoSubmission @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([videoId, createdAt])
+}
+
+model SavedVideo {
+  userId    String
+  videoId   String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     VideoSubmission @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@id([userId, videoId])
+  @@index([videoId, createdAt])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("FollowFollower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("FollowFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt])
+}
+
+model ShareEvent {
+  id        String          @id @default(cuid())
+  userId    String
+  videoId   String
+  createdAt DateTime        @default(now())
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video     VideoSubmission @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, createdAt])
   @@index([userId, createdAt])
 }
 

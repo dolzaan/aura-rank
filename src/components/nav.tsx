@@ -4,18 +4,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Compass, Trophy, Users, Upload, UserRound } from "lucide-react";
 import { clsx } from "clsx";
+import { useSession } from "next-auth/react";
 import { BrandLogo } from "@/components/brand";
 
-const links = [
+const baseLinks = [
   ["Feed", "/feed", Compass],
   ["Ranking", "/ranking", Trophy],
   ["Postar", "/upload", Upload],
   ["Ligas", "/ligas", Users],
-  ["Perfil", "/perfil/dolzaan", UserRound],
 ] as const;
 
 export function Nav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const username = session?.user?.username;
+  const links = [
+    ...baseLinks,
+    ["Perfil", username ? `/perfil/${username}` : "/onboarding", UserRound] as const,
+  ];
+  if (
+    pathname === "/" ||
+    pathname.startsWith("/entrar") ||
+    pathname.startsWith("/cadastro") ||
+    pathname.startsWith("/onboarding")
+  ) {
+    return null;
+  }
 
   return (
     <>
@@ -51,11 +65,16 @@ export function Nav() {
           </nav>
 
           <Link
-            href="/perfil/dolzaan"
-            aria-label="Abrir perfil de Paulo Dolzan"
+            href={username ? `/perfil/${username}` : "/onboarding"}
+            aria-label="Abrir meu perfil"
             className="grid size-10 place-items-center rounded-xl border border-white/10 bg-zinc-900 text-[11px] font-black transition hover:border-aura/40 hover:text-aura"
           >
-            PD
+            {(session?.user?.name || username || "AT")
+              .split(" ")
+              .map((part) => part[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase()}
           </Link>
         </div>
       </header>

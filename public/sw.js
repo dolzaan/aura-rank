@@ -1,9 +1,8 @@
-const CACHE_VERSION = "auratok-v1";
+const CACHE_VERSION = "auratok-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const APP_SHELL = [
   "/",
-  "/feed",
   "/offline",
   "/icon.svg",
   "/icons/icon-192.png",

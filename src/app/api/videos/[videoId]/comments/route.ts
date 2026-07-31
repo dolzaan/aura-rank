@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ensureVideo } from "@/lib/demo-videos";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 const createSchema = z.object({
   body: z.string().trim().min(1).max(500),
   parentId: z.string().min(1).optional(),
-  visitorId: z.string().regex(/^[a-zA-Z0-9-]{8,64}$/),
 });
 
 function serialize(comment: {
@@ -34,7 +33,10 @@ export async function GET(
   context: { params: Promise<{ videoId: string }> },
 ) {
   const { videoId } = await context.params;
-  const video = await ensureVideo(videoId);
+  const video = await prisma.videoSubmission.findUnique({
+    where: { id: videoId },
+    select: { id: true },
+  });
   if (!video) {
     return NextResponse.json({ error: "Vídeo não encontrado." }, { status: 404 });
   }
@@ -56,6 +58,10 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ videoId: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Entre para comentar." }, { status: 401 });
+  }
   const { videoId } = await context.params;
   const parsed = createSchema.safeParse(await request.json());
   if (!parsed.success) {
@@ -65,7 +71,10 @@ export async function POST(
     );
   }
 
-  const video = await ensureVideo(videoId);
+  const video = await prisma.videoSubmission.findUnique({
+    where: { id: videoId },
+    select: { id: true },
+  });
   if (!video) {
     return NextResponse.json({ error: "Vídeo não encontrado." }, { status: 404 });
   }
@@ -83,20 +92,10 @@ export async function POST(
     }
   }
 
-  const suffix = parsed.data.visitorId.replaceAll("-", "").slice(-10);
-  const user = await prisma.user.upsert({
-    where: { email: `${parsed.data.visitorId}@guest.auratok.app` },
-    update: {},
-    create: {
-      email: `${parsed.data.visitorId}@guest.auratok.app`,
-      name: "Você",
-      username: `aura_${suffix}`,
-    },
-  });
   const comment = await prisma.comment.create({
     data: {
       videoId,
-      userId: user.id,
+      userId: session.user.id,
       parentId: parsed.data.parentId,
       body: parsed.data.body,
     },

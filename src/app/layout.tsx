@@ -4,6 +4,7 @@ import "./globals.css";
 import { Nav } from "@/components/nav";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -51,10 +52,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={inter.variable}>
       <body className="min-h-dvh bg-[#050505] text-white antialiased">
-        <Nav />
-        <main className="app-shell">{children}</main>
-        <PwaInstallPrompt />
-        <ServiceWorkerRegister />
+        <Providers>
+          <Nav />
+          <main className="app-shell">{children}</main>
+          <PwaInstallPrompt />
+          <ServiceWorkerRegister />
+        </Providers>
       </body>
     </html>
   );

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { get } from "@vercel/blob";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 export const maxDuration = 300;
@@ -207,6 +209,10 @@ Se não houver material suficiente para avaliar, use notas baixas e confiança b
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Entre para publicar." }, { status: 401 });
+    }
     const parsed = requestSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json(
@@ -232,9 +238,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const source = await fetch(videoUrl, { cache: "no-store" });
-    if (!source.ok) throw new Error("Não foi possível recuperar o vídeo enviado.");
-    const bytes = await source.arrayBuffer();
+    const source = await get(videoUrl.toString(), { access: "private" });
+    if (!source || source.statusCode !== 200) {
+      throw new Error("Não foi possível recuperar o vídeo enviado.");
+    }
+    const bytes = await new Response(source.stream).arrayBuffer();
     if (bytes.byteLength > MAX_VIDEO_SIZE) {
       return NextResponse.json(
         { error: "O vídeo ultrapassa o limite de 50 MB." },
@@ -264,18 +272,9 @@ export async function POST(request: Request) {
       analysis.contentSafe && !analysis.reviewRequired ? "APPROVED" : "REVIEW";
 
     const submission = await prisma.$transaction(async (database) => {
-      const user = await database.user.upsert({
-        where: { email: "creator@auratok.app" },
-        update: {},
-        create: {
-          email: "creator@auratok.app",
-          name: "Paulo Dolzan",
-          username: "dolzaan",
-        },
-      });
       const created = await database.videoSubmission.create({
         data: {
-          userId: user.id,
+          userId: session.user.id,
           videoUrl: parsed.data.videoUrl,
           caption: parsed.data.caption,
           status,
@@ -286,14 +285,14 @@ export async function POST(request: Request) {
       if (status === "APPROVED") {
         await database.auraTransaction.create({
           data: {
-            userId: user.id,
+            userId: session.user.id,
             submissionId: created.id,
             amount: totalPoints,
             reason: "Análise do vídeo pelo Gemini",
           },
         });
         await database.user.update({
-          where: { id: user.id },
+          where: { id: session.user.id },
           data: { auraBalance: { increment: totalPoints } },
         });
       }

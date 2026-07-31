@@ -13,7 +13,6 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Bookmark,
-  Check,
   Heart,
   LoaderCircle,
   MessageCircle,
@@ -25,13 +24,14 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { BrandMark } from "@/components/brand";
-import { posts as demoPosts } from "@/lib/mock";
 
 type FeedPost = {
   id: string;
   user: {
     username: string;
     name: string;
+    image: string | null;
+    isDemo: boolean;
     aura: number;
     trend: string;
     avatar: string;
@@ -39,9 +39,18 @@ type FeedPost = {
   points: number;
   caption: string;
   aiSummary: string;
-  videoUrl: string | null;
+  videoUrl: string;
   tags: string[];
-  commentCount?: number;
+  commentCount: number;
+  likeCount: number;
+  saveCount: number;
+  shareCount: number;
+  isLiked: boolean;
+  isSaved: boolean;
+  isFollowing: boolean;
+  isOwn: boolean;
+  sourceUrl: string | null;
+  sourceName: string | null;
 };
 
 type CommentItem = {
@@ -77,24 +86,44 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-function getVisitorId() {
-  const storageKey = "auratok-visitor-id";
-  const current = window.localStorage.getItem(storageKey);
-  if (current) return current;
-  const created = crypto.randomUUID();
-  window.localStorage.setItem(storageKey, created);
-  return created;
+function Avatar({
+  username,
+  name,
+  image,
+  className,
+}: {
+  username: string;
+  name: string;
+  image: string | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={clsx(
+        "relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-aura text-xs font-black text-black",
+        className,
+      )}
+    >
+      {image ? (
+        <Image
+          src={`/api/avatar/${encodeURIComponent(username)}`}
+          alt=""
+          fill
+          sizes="48px"
+          className="object-cover"
+        />
+      ) : (
+        initials(name)
+      )}
+    </span>
+  );
 }
 
 export function VideoFeed({ className }: { className?: string }) {
-  const [feedPosts, setFeedPosts] = useState<FeedPost[]>(demoPosts);
+  const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
+  const [mode, setMode] = useState<"following" | "foryou">("foryou");
+  const [feedLoading, setFeedLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
-  const [saved, setSaved] = useState<Record<string, boolean>>({});
-  const [following, setFollowing] = useState<Record<string, boolean>>({});
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>(
-    Object.fromEntries(demoPosts.map((post) => [post.id, 0])),
-  );
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -109,35 +138,40 @@ export function VideoFeed({ className }: { className?: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/feed", { cache: "no-store" })
+    fetch(`/api/feed${mode === "following" ? "?mode=following" : ""}`, {
+      cache: "no-store",
+    })
       .then(async (response) => {
-        if (!response.ok) return { posts: [] as FeedPost[] };
-        return (await response.json()) as { posts: FeedPost[] };
+        const payload = (await response.json()) as {
+          posts?: FeedPost[];
+          error?: string;
+        };
+        if (!response.ok) throw new Error(payload.error);
+        return payload.posts || [];
       })
-      .then(({ posts }) => {
-        if (cancelled || !posts.length) return;
-        setFeedPosts([
-          ...posts,
-          ...demoPosts.filter(
-            (demo) => !posts.some((post) => post.id === demo.id),
-          ),
-        ]);
-        setCommentCounts((current) => ({
-          ...current,
-          ...Object.fromEntries(
-            posts.map((post) => [post.id, post.commentCount || 0]),
-          ),
-        }));
+      .then((posts) => {
+        if (cancelled) return;
+        setFeedPosts(posts);
+        setActiveIndex(0);
       })
       .catch(() => {
-        // O feed demonstrativo continua disponível se a API estiver offline.
+        if (!cancelled) setToast("Não foi possível carregar o feed");
+      })
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false);
       });
     return () => {
       cancelled = true;
+    };
+  }, [mode]);
+
+  useEffect(
+    () => () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
       if (burstTimer.current) clearTimeout(burstTimer.current);
-    };
-  }, []);
+    },
+    [],
+  );
 
   const activePost = useMemo(
     () => feedPosts.find((post) => post.id === commentVideoId) || null,
@@ -150,6 +184,12 @@ export function VideoFeed({ className }: { className?: string }) {
     toastTimer.current = setTimeout(() => setToast(null), 1800);
   }
 
+  function updatePost(postId: string, update: Partial<FeedPost>) {
+    setFeedPosts((current) =>
+      current.map((post) => (post.id === postId ? { ...post, ...update } : post)),
+    );
+  }
+
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     const container = event.currentTarget;
     const nextIndex = Math.min(
@@ -159,26 +199,68 @@ export function VideoFeed({ className }: { className?: string }) {
     if (nextIndex !== activeIndex) setActiveIndex(nextIndex);
   }
 
-  function toggleFollow(username: string) {
-    const next = !following[username];
-    setFollowing((current) => ({ ...current, [username]: next }));
-    showToast(next ? `Agora você segue @${username}` : "Você deixou de seguir");
-  }
-
-  function toggleLike(postId: string) {
-    const next = !liked[postId];
-    setLiked((current) => ({ ...current, [postId]: next }));
-    if (next) {
-      setAuraBurst(postId);
-      if (burstTimer.current) clearTimeout(burstTimer.current);
-      burstTimer.current = setTimeout(() => setAuraBurst(null), 900);
+  async function toggleFollow(post: FeedPost) {
+    if (post.isOwn) return;
+    try {
+      const response = await fetch(
+        `/api/users/${encodeURIComponent(post.user.username)}/follow`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        following?: boolean;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error);
+      setFeedPosts((current) =>
+        current.map((item) =>
+          item.user.username === post.user.username
+            ? { ...item, isFollowing: Boolean(payload.following) }
+            : item,
+        ),
+      );
+      showToast(
+        payload.following
+          ? `Agora você segue @${post.user.username}`
+          : "Você deixou de seguir",
+      );
+    } catch {
+      showToast("Não foi possível atualizar");
     }
   }
 
-  function toggleSave(postId: string) {
-    const next = !saved[postId];
-    setSaved((current) => ({ ...current, [postId]: next }));
-    showToast(next ? "Salvo na sua coleção" : "Removido dos salvos");
+  async function interact(post: FeedPost, action: "like" | "save" | "share") {
+    try {
+      const response = await fetch(`/api/videos/${post.id}/interactions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const payload = (await response.json()) as {
+        active?: boolean;
+        likeCount?: number;
+        saveCount?: number;
+        shareCount?: number;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error);
+      updatePost(post.id, {
+        ...(action === "like" ? { isLiked: Boolean(payload.active) } : {}),
+        ...(action === "save" ? { isSaved: Boolean(payload.active) } : {}),
+        likeCount: payload.likeCount ?? post.likeCount,
+        saveCount: payload.saveCount ?? post.saveCount,
+        shareCount: payload.shareCount ?? post.shareCount,
+      });
+      if (action === "like" && payload.active) {
+        setAuraBurst(post.id);
+        if (burstTimer.current) clearTimeout(burstTimer.current);
+        burstTimer.current = setTimeout(() => setAuraBurst(null), 900);
+      }
+      if (action === "save") {
+        showToast(payload.active ? "Salvo na sua coleção" : "Removido dos salvos");
+      }
+    } catch {
+      showToast("Não foi possível atualizar");
+    }
   }
 
   async function shareVideo(post: FeedPost) {
@@ -190,11 +272,11 @@ export function VideoFeed({ className }: { className?: string }) {
     try {
       if (navigator.share) {
         await navigator.share(shareData);
-        showToast("Compartilhado ✦");
       } else {
         await navigator.clipboard.writeText(shareData.url);
         showToast("Link copiado");
       }
+      await interact(post, "share");
     } catch (error) {
       if (error instanceof Error && error.name !== "AbortError") {
         showToast("Não foi possível compartilhar");
@@ -219,10 +301,7 @@ export function VideoFeed({ className }: { className?: string }) {
       };
       if (!response.ok) throw new Error(payload.error);
       setComments(payload.comments || []);
-      setCommentCounts((current) => ({
-        ...current,
-        [postId]: payload.count || 0,
-      }));
+      updatePost(postId, { commentCount: payload.count || 0 });
     } catch {
       showToast("Não foi possível carregar os comentários");
     } finally {
@@ -242,33 +321,25 @@ export function VideoFeed({ className }: { className?: string }) {
 
     setCommentSending(true);
     try {
-      const response = await fetch(
-        `/api/videos/${commentVideoId}/comments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            body: value,
-            parentId: replyingTo?.id,
-            visitorId: getVisitorId(),
-          }),
-        },
-      );
+      const response = await fetch(`/api/videos/${commentVideoId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ body: value, parentId: replyingTo?.id }),
+      });
       const payload = (await response.json()) as {
         comment?: CommentItem;
         error?: string;
       };
-      if (!response.ok || !payload.comment) {
-        throw new Error(payload.error);
-      }
+      if (!response.ok || !payload.comment) throw new Error(payload.error);
       setComments((current) => [...current, payload.comment!]);
-      setCommentCounts((current) => ({
-        ...current,
-        [commentVideoId]: (current[commentVideoId] || 0) + 1,
-      }));
+      updatePost(commentVideoId, {
+        commentCount:
+          (feedPosts.find((post) => post.id === commentVideoId)?.commentCount ||
+            0) + 1,
+      });
       setCommentText("");
       setReplyingTo(null);
-      showToast(replyingTo ? "Resposta publicada" : "+3 aura por participar");
+      showToast(replyingTo ? "Resposta publicada" : "Comentário publicado");
     } catch {
       showToast("Não foi possível publicar");
     } finally {
@@ -280,19 +351,20 @@ export function VideoFeed({ className }: { className?: string }) {
     return (
       <div
         key={comment.id}
-        className={clsx("flex gap-3", nested && "ml-11 border-l border-white/10 pl-3")}
+        className={clsx(
+          "flex gap-3",
+          nested && "ml-11 border-l border-white/10 pl-3",
+        )}
       >
-        <span
-          className={clsx(
-            "grid shrink-0 place-items-center rounded-full text-[10px] font-black",
-            nested ? "size-8 bg-zinc-800" : "size-9 bg-aura text-black",
-          )}
-        >
-          {initials(comment.user.name)}
-        </span>
+        <Avatar
+          username={comment.user.username}
+          name={comment.user.name}
+          image={comment.user.image}
+          className={nested ? "size-8" : "size-9"}
+        />
         <div className="min-w-0">
           <p className={clsx("text-xs font-bold", !nested && "text-aura")}>
-            {comment.user.name}
+            @{comment.user.username}
           </p>
           <p className="mt-1 break-words text-sm leading-5 text-zinc-200">
             {comment.body}
@@ -323,11 +395,7 @@ export function VideoFeed({ className }: { className?: string }) {
         <div className="flex items-center">
           <AnimatePresence>
             {activeIndex === 0 ? (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-              >
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <Link
                   href="/"
                   className="pointer-events-auto grid size-8 place-items-center text-aura md:hidden"
@@ -339,16 +407,27 @@ export function VideoFeed({ className }: { className?: string }) {
             ) : null}
           </AnimatePresence>
         </div>
-        <div className="pointer-events-auto flex min-w-0 items-center justify-center gap-3 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.08em] min-[360px]:gap-5 min-[360px]:text-xs min-[360px]:tracking-[0.12em]">
-          <button type="button" className="text-zinc-600">
-            Seguindo
-          </button>
-          <button
-            type="button"
-            className="relative text-white after:absolute after:-bottom-2.5 after:left-1/2 after:h-0.5 after:w-6 after:-translate-x-1/2 after:rounded-full after:bg-aura"
-          >
-            Para você
-          </button>
+        <div className="pointer-events-auto flex min-w-0 items-center justify-center gap-5 whitespace-nowrap text-xs font-bold uppercase tracking-[0.12em]">
+          {(["following", "foryou"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => {
+                if (item !== mode) {
+                  setFeedLoading(true);
+                  setMode(item);
+                }
+              }}
+              className={clsx(
+                "relative",
+                mode === item
+                  ? "text-white after:absolute after:-bottom-2.5 after:left-1/2 after:h-0.5 after:w-6 after:-translate-x-1/2 after:rounded-full after:bg-aura"
+                  : "text-zinc-600",
+              )}
+            >
+              {item === "following" ? "Seguindo" : "Para você"}
+            </button>
+          ))}
         </div>
         <div className="flex justify-end">
           <Link
@@ -359,350 +438,291 @@ export function VideoFeed({ className }: { className?: string }) {
             <Plus size={18} strokeWidth={2.8} />
           </Link>
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-white/10">
-          <motion.div
-            className="h-full bg-aura shadow-[0_0_14px_#c7ff32]"
-            animate={{
-              width: `${((activeIndex + 1) / feedPosts.length) * 100}%`,
-            }}
-          />
-        </div>
       </header>
 
-      <div
-        className="h-full snap-y snap-mandatory overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        onScroll={handleScroll}
-      >
-        {feedPosts.map((post, index) => {
-          const isLiked = Boolean(liked[post.id]);
-          const isSaved = Boolean(saved[post.id]);
-          const isFollowing = Boolean(following[post.user.username]);
-          const likes = index === 0 ? 12800 : 8421 + index * 137;
-          const shares = index === 0 ? 1204 : 829 + index * 51;
-
-          return (
+      {feedLoading ? (
+        <div className="grid h-full place-items-center text-aura">
+          <LoaderCircle className="animate-spin" size={28} />
+        </div>
+      ) : feedPosts.length === 0 ? (
+        <div className="grid h-full place-items-center px-8 text-center">
+          <div>
+            <Sparkles className="mx-auto text-aura" size={32} />
+            <h2 className="mt-5 text-xl font-black">
+              {mode === "following" ? "Seu feed Seguindo está vazio" : "Nada por aqui ainda"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">
+              {mode === "following"
+                ? "Siga alguém no Para você para montar este feed."
+                : "Publique o primeiro vídeo e comece a farmar aura."}
+            </p>
+            {mode === "following" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setFeedLoading(true);
+                  setMode("foryou");
+                }}
+                className="primary-button mt-5 px-5"
+              >
+                Descobrir perfis
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="h-full snap-y snap-mandatory overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          onScroll={handleScroll}
+        >
+          {feedPosts.map((post, index) => (
             <article
               id={`video-${post.id}`}
               key={post.id}
-              onDoubleClick={() => toggleLike(post.id)}
+              onDoubleClick={() => void interact(post, "like")}
               className="relative h-full min-h-0 snap-start snap-always overflow-hidden bg-zinc-950"
             >
-              {post.videoUrl ? (
-                <video
-                  src={post.videoUrl}
-                  muted
-                  playsInline
-                  loop
-                  autoPlay={index === activeIndex}
-                  preload={Math.abs(index - activeIndex) <= 1 ? "metadata" : "none"}
-                  className="absolute inset-0 size-full object-cover"
-                />
-              ) : index === feedPosts.findIndex((item) => !item.videoUrl) ? (
-                <Image
-                  src="/auratok-skate-hero.png"
-                  alt="Skatista em uma manobra urbana"
-                  fill
-                  priority
-                  sizes="(max-width: 767px) 100vw, (max-width: 1023px) 560px, (max-width: 1279px) 620px, 680px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_62%_26%,#536d0b_0%,#202516_22%,#0b0b0b_66%)]" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black/95" />
+              <video
+                src={post.videoUrl}
+                muted
+                playsInline
+                loop
+                autoPlay={index === activeIndex}
+                preload={Math.abs(index - activeIndex) <= 1 ? "metadata" : "none"}
+                className="absolute inset-0 size-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/95" />
 
-              <motion.div
-                initial={{ opacity: 0, y: -12, scale: 0.96 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ amount: 0.7 }}
-                className="feed-score-card absolute left-3 top-[calc(env(safe-area-inset-top)+4.5rem)] z-20 rounded-xl border border-aura/25 bg-black/60 px-3 py-2 backdrop-blur-xl min-[380px]:left-4 md:top-20 md:px-3 md:py-2.5"
-              >
+              <div className="absolute left-3 top-[calc(env(safe-area-inset-top)+4.5rem)] z-20 rounded-xl border border-aura/25 bg-black/60 px-3 py-2 backdrop-blur-xl md:top-20">
                 <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Aura capturada
                 </span>
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  <strong className="text-xl font-black tabular-nums text-aura">
-                    +{post.points.toLocaleString("pt-BR")}
-                  </strong>
-                  <BrandMark className="size-4 text-aura" />
-                </div>
-              </motion.div>
+                <strong className="mt-0.5 block text-lg font-black text-aura">
+                  +{post.points.toLocaleString("pt-BR")}
+                </strong>
+              </div>
 
               <AnimatePresence>
                 {auraBurst === post.id ? (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.4 }}
-                    animate={{ opacity: 1, scale: [0.4, 1.18, 1] }}
-                    exit={{ opacity: 0, y: -40, scale: 0.7 }}
+                    initial={{ opacity: 0, scale: 0.5 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.5 }}
                     className="pointer-events-none absolute inset-0 z-30 grid place-items-center"
                   >
-                    <div className="relative grid size-28 place-items-center rounded-full bg-aura/15 text-aura backdrop-blur-sm">
-                      <Heart size={58} fill="currentColor" />
-                      <span className="absolute -top-5 text-sm font-black">
-                        +5 AURA
-                      </span>
-                      <Sparkles className="absolute -right-8 -top-8" size={18} />
-                    </div>
+                    <Heart size={86} fill="#c7ff32" className="text-aura drop-shadow-[0_0_32px_#c7ff32]" />
                   </motion.div>
                 ) : null}
               </AnimatePresence>
 
-              <div
-                data-testid="feed-content"
-                className="feed-content absolute inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_48px] items-end gap-2 px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-24 min-[380px]:grid-cols-[minmax(0,1fr)_52px] min-[380px]:gap-3 min-[380px]:px-4 md:grid-cols-[minmax(0,1fr)_56px] md:gap-4 md:px-5 md:pb-8"
-              >
-                <div className="min-w-0">
-                  <div className="mb-2 flex min-w-0 items-center gap-2 min-[380px]:mb-3 min-[380px]:gap-2.5">
-                    <Link
-                      href={`/perfil/${post.user.username}`}
-                      className="grid size-9 shrink-0 place-items-center rounded-xl border border-white/20 bg-zinc-900 text-[10px] font-black min-[380px]:size-10 min-[380px]:text-[11px]"
-                    >
-                      {post.user.avatar}
-                    </Link>
-                    <Link
-                      href={`/perfil/${post.user.username}`}
-                      className="min-w-0 truncate text-xs font-bold min-[380px]:text-sm"
-                    >
+              <div className="absolute inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex items-end gap-3 px-4 pb-5 md:bottom-0 md:pb-7">
+                <div className="min-w-0 flex-1 pr-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link href={`/perfil/${post.user.username}`} className="font-black">
                       @{post.user.username}
                     </Link>
-                    <button
-                      type="button"
-                      aria-pressed={isFollowing}
-                      onClick={() => toggleFollow(post.user.username)}
-                      className={clsx(
-                        "min-h-7 shrink-0 rounded-lg px-2 text-[9px] font-black uppercase tracking-wider transition active:scale-95 min-[380px]:px-3 min-[380px]:text-[10px]",
-                        isFollowing
-                          ? "bg-aura text-black"
-                          : "border border-white/30 text-white",
-                      )}
-                    >
-                      {isFollowing ? (
-                        <span className="flex items-center gap-1">
-                          <Check size={12} /> Seguindo
-                        </span>
-                      ) : (
-                        "Seguir"
-                      )}
-                    </button>
+                    {post.user.isDemo ? (
+                      <span className="rounded-full border border-white/15 bg-black/40 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-zinc-300">
+                        demonstração
+                      </span>
+                    ) : null}
+                    {!post.isOwn ? (
+                      <button
+                        type="button"
+                        onClick={() => void toggleFollow(post)}
+                        className={clsx(
+                          "rounded-full border px-3 py-1 text-[10px] font-black transition",
+                          post.isFollowing
+                            ? "border-white/20 bg-white/10 text-white"
+                            : "border-aura bg-aura text-black",
+                        )}
+                      >
+                        {post.isFollowing ? "Seguindo" : "Seguir"}
+                      </button>
+                    ) : null}
                   </div>
-                  <p className="line-clamp-2 max-w-md text-xs leading-5 text-white/95 min-[380px]:text-sm min-[380px]:leading-6">
+                  <p className="mt-2 max-w-xl text-sm font-medium leading-5 text-white">
                     {post.caption}
                   </p>
-                  <div className="feed-ai-summary mt-2 max-w-md rounded-xl border border-aura/15 bg-black/45 px-2.5 py-2 backdrop-blur-md min-[380px]:mt-3 min-[380px]:px-3">
-                    <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-aura">
-                      <Sparkles size={11} /> Leitura da IA
+                  <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-3 backdrop-blur-lg">
+                    <p className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-aura">
+                      <Sparkles size={12} /> Leitura da IA
                     </p>
-                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-300 min-[380px]:text-xs min-[380px]:leading-5">
+                    <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-zinc-300">
                       {post.aiSummary}
                     </p>
                   </div>
+                  {post.sourceUrl && post.sourceName ? (
+                    <a
+                      href={post.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-block text-[9px] text-zinc-500 hover:text-white"
+                    >
+                      Vídeo: {post.sourceName}
+                    </a>
+                  ) : null}
                 </div>
 
-                <aside
-                  data-testid="feed-actions"
-                  className="feed-actions flex flex-col items-center gap-4 pb-1 min-[380px]:gap-5"
-                  aria-label="Ações do vídeo"
-                >
-                  <motion.button
-                    whileTap={{ scale: 0.72 }}
+                <aside aria-label="Ações do vídeo" className="flex w-12 shrink-0 flex-col items-center gap-5 pb-1">
+                  <Link href={`/perfil/${post.user.username}`}>
+                    <Avatar
+                      username={post.user.username}
+                      name={post.user.name}
+                      image={post.user.image}
+                      className="size-11 border-2 border-white"
+                    />
+                  </Link>
+                  <button
                     type="button"
-                    aria-label={isLiked ? "Remover curtida" : "Curtir"}
-                    aria-pressed={isLiked}
-                    onClick={() => toggleLike(post.id)}
-                    className={clsx(actionClass, isLiked && "text-aura")}
+                    onClick={() => void interact(post, "like")}
+                    aria-label={post.isLiked ? "Descurtir" : "Curtir"}
+                    className={actionClass}
                   >
-                    <Heart size={28} fill={isLiked ? "currentColor" : "none"} />
-                    <span className="text-[10px] font-semibold">
-                      {formatCount(likes + (isLiked ? 1 : 0))}
-                    </span>
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.72 }}
+                    <Heart
+                      size={29}
+                      fill={post.isLiked ? "#c7ff32" : "transparent"}
+                      className={post.isLiked ? "text-aura" : ""}
+                    />
+                    <span className="text-[10px] font-bold">{formatCount(post.likeCount)}</span>
+                  </button>
+                  <button
                     type="button"
-                    aria-label="Comentar"
                     onClick={() => void openComments(post.id)}
+                    aria-label="Comentar"
                     className={actionClass}
                   >
-                    <MessageCircle size={27} />
-                    <span className="text-[10px] font-semibold">
-                      {formatCount(commentCounts[post.id] || 0)}
-                    </span>
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.72 }}
+                    <MessageCircle size={28} />
+                    <span className="text-[10px] font-bold">{formatCount(post.commentCount)}</span>
+                  </button>
+                  <button
                     type="button"
-                    aria-label="Compartilhar"
                     onClick={() => void shareVideo(post)}
+                    aria-label="Compartilhar"
                     className={actionClass}
                   >
-                    <Share2 size={26} />
-                    <span className="text-[10px] font-semibold">
-                      {formatCount(shares)}
-                    </span>
-                  </motion.button>
-                  <motion.button
-                    whileTap={{ scale: 0.72 }}
+                    <Share2 size={27} />
+                    <span className="text-[10px] font-bold">{formatCount(post.shareCount)}</span>
+                  </button>
+                  <button
                     type="button"
-                    aria-label={isSaved ? "Remover dos salvos" : "Salvar"}
-                    aria-pressed={isSaved}
-                    onClick={() => toggleSave(post.id)}
-                    className={clsx(actionClass, isSaved && "text-aura")}
+                    onClick={() => void interact(post, "save")}
+                    aria-label={post.isSaved ? "Remover dos salvos" : "Salvar"}
+                    className={actionClass}
                   >
                     <Bookmark
-                      size={26}
-                      fill={isSaved ? "currentColor" : "none"}
+                      size={27}
+                      fill={post.isSaved ? "#c7ff32" : "transparent"}
+                      className={post.isSaved ? "text-aura" : ""}
                     />
-                  </motion.button>
+                  </button>
                 </aside>
               </div>
             </article>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <AnimatePresence>
-        {toast ? (
-          <motion.div
-            role="status"
-            initial={{ opacity: 0, y: 18, scale: 0.94 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[80] mx-auto flex w-fit items-center gap-2 rounded-full border border-aura/30 bg-aura px-4 py-2.5 text-xs font-black text-black md:bottom-8"
-          >
-            <BrandMark className="size-4" />
-            {toast}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {commentVideoId && activePost ? (
+        {commentVideoId ? (
           <>
             <motion.button
               type="button"
               aria-label="Fechar comentários"
+              onClick={() => setCommentVideoId(null)}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setCommentVideoId(null)}
-              className="fixed inset-0 z-[70] cursor-default bg-black/55 backdrop-blur-sm"
+              className="absolute inset-0 z-50 bg-black/55"
             />
             <motion.section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="comments-title"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[calc(100dvh-3.5rem)] w-full max-w-[520px] flex-col rounded-t-[28px] border border-white/10 bg-[#0b0b0b] pb-[env(safe-area-inset-bottom)] shadow-2xl md:max-h-[72dvh] md:max-w-[560px] lg:max-w-[620px]"
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="absolute inset-x-0 bottom-0 z-[60] flex max-h-[72%] min-h-[48%] flex-col rounded-t-[28px] border-t border-white/10 bg-[#0b0b0b] pb-[env(safe-area-inset-bottom)]"
             >
-              <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-zinc-700" />
               <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div>
-                  <h2 id="comments-title" className="font-black">
-                    Comentários
-                  </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {formatCount(commentCounts[commentVideoId] || 0)} respostas
+                  <h2 className="font-black">Comentários</h2>
+                  <p className="text-[10px] text-zinc-500">
+                    {activePost?.commentCount || 0} conversas reais
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCommentVideoId(null)}
                   aria-label="Fechar"
-                  className="icon-button"
+                  className="grid size-9 place-items-center rounded-full bg-white/5"
                 >
                   <X size={18} />
                 </button>
               </header>
-
-              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
+              <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
                 {commentsLoading ? (
-                  <div className="grid min-h-40 place-items-center text-aura">
-                    <LoaderCircle className="animate-spin" size={24} />
-                  </div>
+                  <LoaderCircle className="mx-auto animate-spin text-aura" size={24} />
                 ) : comments.length ? (
                   comments
                     .filter((comment) => !comment.parentId)
-                    .map((comment) => (
-                      <div key={comment.id} className="space-y-4">
-                        {renderComment(comment)}
-                        {comments
-                          .filter((reply) => reply.parentId === comment.id)
-                          .map((reply) => renderComment(reply, true))}
-                      </div>
-                    ))
+                    .flatMap((comment) => [
+                      renderComment(comment),
+                      ...comments
+                        .filter((reply) => reply.parentId === comment.id)
+                        .map((reply) => renderComment(reply, true)),
+                    ])
                 ) : (
-                  <div className="grid min-h-40 place-items-center text-center">
-                    <div>
-                      <MessageCircle
-                        className="mx-auto text-zinc-700"
-                        size={28}
-                      />
-                      <p className="mt-3 text-sm font-bold">
-                        Seja a primeira presença
-                      </p>
-                      <p className="mt-1 text-xs text-zinc-600">
-                        Comece a conversa sobre este momento.
-                      </p>
-                    </div>
-                  </div>
+                  <p className="py-10 text-center text-sm text-zinc-600">
+                    Seja a primeira pessoa a comentar.
+                  </p>
                 )}
               </div>
-
-              {replyingTo ? (
-                <div className="flex items-center justify-between border-t border-white/10 bg-white/[.025] px-4 py-2 text-xs text-zinc-400">
-                  <span>
-                    Respondendo a{" "}
-                    <strong className="text-aura">
-                      {replyingTo.user.name}
-                    </strong>
-                  </span>
+              <form onSubmit={submitComment} className="border-t border-white/10 p-3">
+                {replyingTo ? (
+                  <div className="mb-2 flex items-center justify-between px-2 text-[10px] text-zinc-500">
+                    <span>Respondendo @{replyingTo.user.username}</span>
+                    <button type="button" onClick={() => setReplyingTo(null)}>
+                      Cancelar
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex items-center gap-2 rounded-2xl bg-white/5 p-2">
+                  <input
+                    ref={commentInputRef}
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    placeholder="Adicione um comentário..."
+                    maxLength={500}
+                    className="min-h-10 min-w-0 flex-1 bg-transparent px-2 text-sm outline-none placeholder:text-zinc-600"
+                  />
                   <button
-                    type="button"
-                    onClick={() => setReplyingTo(null)}
-                    aria-label="Cancelar resposta"
+                    type="submit"
+                    disabled={!commentText.trim() || commentSending}
+                    aria-label="Enviar comentário"
+                    className="grid size-10 place-items-center rounded-xl bg-aura text-black disabled:opacity-40"
                   >
-                    <X size={14} />
+                    {commentSending ? (
+                      <LoaderCircle className="animate-spin" size={17} />
+                    ) : (
+                      <Send size={17} />
+                    )}
                   </button>
                 </div>
-              ) : null}
-              <form
-                onSubmit={(event) => void submitComment(event)}
-                className="flex gap-2 border-t border-white/10 bg-[#0b0b0b] p-4"
-              >
-                <label htmlFor="new-comment" className="sr-only">
-                  Adicionar comentário
-                </label>
-                <input
-                  ref={commentInputRef}
-                  id="new-comment"
-                  value={commentText}
-                  maxLength={500}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  placeholder={
-                    replyingTo
-                      ? `Responder a ${replyingTo.user.name}...`
-                      : "Adicione sua presença..."
-                  }
-                  className="input min-w-0 !w-auto flex-1"
-                />
-                <button
-                  type="submit"
-                  disabled={!commentText.trim() || commentSending}
-                  aria-label="Publicar comentário"
-                  className="grid size-12 shrink-0 place-items-center rounded-xl bg-aura text-black transition disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  {commentSending ? (
-                    <LoaderCircle className="animate-spin" size={18} />
-                  ) : (
-                    <Send size={19} />
-                  )}
-                </button>
               </form>
             </motion.section>
           </>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast ? (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="pointer-events-none absolute bottom-24 left-1/2 z-[70] -translate-x-1/2 whitespace-nowrap rounded-full bg-aura px-4 py-2 text-xs font-black text-black md:bottom-7"
+          >
+            {toast}
+          </motion.div>
         ) : null}
       </AnimatePresence>
     </section>
