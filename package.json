@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@prisma/client": "^6.13.0",
-    "@spectre-ui/core": "^1.0.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",
     "lucide-react": "^0.468.0",
