@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 96" role="img" aria-labelledby="title">
+  <title id="title">AuraTok</title>
+  <path d="M48 8C48 30.09 65.91 48 88 48C65.91 48 48 65.91 48 88C48 65.91 30.09 48 8 48C30.09 48 48 30.09 48 8Z" fill="none" stroke="#C7FF32" stroke-width="5.5" stroke-linejoin="round"/>
+  <text x="110" y="66" fill="#FFFFFF" font-family="Inter,Arial,sans-serif" font-size="56" font-weight="900" letter-spacing="-3">AURA</text>
+  <text x="270" y="66" fill="#C7FF32" font-family="Inter,Arial,sans-serif" font-size="56" font-weight="900" letter-spacing="-3">TOK</text>
+</svg>

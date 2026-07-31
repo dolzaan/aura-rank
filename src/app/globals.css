@@ -5,60 +5,193 @@
 :root {
   color-scheme: dark;
   --aura: 199 255 50;
+  --ink: 5 5 5;
+  --surface: 15 15 15;
 }
 
-* { box-sizing: border-box; }
-html { background: #000; scroll-behavior: smooth; }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #050505;
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 50% -20%, rgba(199,255,50,.08), transparent 30rem),
-    #000;
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    radial-gradient(circle at 70% -10%, rgba(199, 255, 50, 0.08), transparent 28rem),
+    #050505;
+  background-size: 56px 56px, 56px 56px, auto, auto;
   color: #fff;
   font-family: var(--font-inter), system-ui, sans-serif;
 }
-a { color: inherit; text-decoration: none; }
-button, input, textarea, select { font: inherit; }
-button, a { -webkit-tap-highlight-color: transparent; }
+
+::selection {
+  background: #c7ff32;
+  color: #050505;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #c7ff32;
+  outline-offset: 3px;
+}
 
 .app-shell {
-  width: min(100%, 1200px);
+  width: min(100%, 1240px);
   min-height: 100dvh;
   margin-inline: auto;
-  padding: 5.75rem 1.25rem 7rem;
+  padding: 7rem 1.25rem 7rem;
 }
+
 .app-shell:has(> .feed-shell) {
-  width: 100%; max-width: none; padding: 0;
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.brand-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.aura-rings {
+  background:
+    radial-gradient(circle, transparent 29%, rgba(199, 255, 50, 0.6) 29.5%, transparent 30.5%),
+    radial-gradient(circle, transparent 42%, rgba(199, 255, 50, 0.38) 42.5%, transparent 43.5%),
+    radial-gradient(circle, transparent 56%, rgba(199, 255, 50, 0.2) 56.5%, transparent 57.5%);
 }
 
 @layer components {
-  .surface { @apply rounded-[28px] border border-white/10 bg-zinc-950/80 shadow-2xl shadow-black/40; }
-  .eyebrow { @apply inline-flex items-center gap-2 rounded-full border border-lime-300/20 bg-lime-300/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-lime-300; }
-  .primary-button { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-lime-300 px-5 font-extrabold text-black transition duration-200 hover:bg-lime-200 active:scale-[.98]; }
-  .secondary-button { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 font-bold text-white transition duration-200 hover:bg-white/10 active:scale-[.98]; }
-  .panel { @apply surface; }
-  .muted { @apply text-zinc-400; }
-  .lime { @apply text-lime-300; }
-  .gradient-text { @apply bg-gradient-to-b from-white to-zinc-400 bg-clip-text text-transparent; }
-  .btn { @apply primary-button; }
-  .btn-secondary { @apply secondary-button; }
-  .input { @apply w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-lime-300/50 focus:ring-4 focus:ring-lime-300/10; }
-  .grid-auto { @apply grid gap-4; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-  .glass { @apply border border-white/10 bg-black/70 backdrop-blur-xl; }
+  .surface {
+    @apply rounded-[24px] border border-white/10 bg-[#0d0d0d]/95 shadow-2xl shadow-black/40;
+  }
+
+  .surface-hover {
+    @apply transition duration-300 hover:-translate-y-1 hover:border-aura/30 hover:shadow-aura;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.22em] text-aura;
+  }
+
+  .eyebrow::before {
+    content: "";
+    @apply size-1.5 rounded-full bg-aura shadow-[0_0_16px_#c7ff32];
+  }
+
+  .primary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-aura px-6 text-sm font-black text-black transition duration-200 hover:bg-[#d7ff68] hover:shadow-[0_0_28px_rgba(199,255,50,.25)] active:scale-[.98];
+  }
+
+  .secondary-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[.035] px-6 text-sm font-bold text-white transition duration-200 hover:border-white/30 hover:bg-white/[.07] active:scale-[.98];
+  }
+
+  .icon-button {
+    @apply grid size-11 place-items-center rounded-xl border border-white/10 bg-white/[.035] text-zinc-300 transition hover:border-aura/30 hover:text-aura;
+  }
+
+  .panel {
+    @apply surface;
+  }
+
+  .muted {
+    @apply text-zinc-400;
+  }
+
+  .lime {
+    @apply text-aura;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-b from-white to-zinc-500 bg-clip-text text-transparent;
+  }
+
+  .btn {
+    @apply primary-button;
+  }
+
+  .btn-secondary {
+    @apply secondary-button;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-white/10 bg-[#080808] px-4 py-3.5 text-white outline-none transition placeholder:text-zinc-600 focus:border-aura/50 focus:ring-4 focus:ring-aura/10;
+  }
+
+  .grid-auto {
+    @apply grid gap-4;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  }
+
+  .glass {
+    @apply border border-white/10 bg-black/75 backdrop-blur-2xl;
+  }
+
+  .page-title {
+    @apply text-balance text-4xl font-black uppercase leading-[0.92] tracking-[-0.055em] sm:text-6xl;
+  }
+
+  .section-label {
+    @apply text-xs font-bold uppercase tracking-[0.18em] text-zinc-500;
+  }
+
+  .score-ring {
+    background: conic-gradient(#c7ff32 var(--score, 76%), #252525 0);
+    @apply relative grid aspect-square place-items-center rounded-full;
+  }
+
+  .score-ring::after {
+    content: "";
+    @apply absolute inset-[7px] rounded-full bg-[#0d0d0d];
+  }
 }
 
 @media (max-width: 767px) {
-  .app-shell { padding: 1rem .75rem 6.75rem; }
-  .app-shell:has(> .feed-shell) { padding: 0 0 5.25rem; }
+  .app-shell {
+    padding: 1.25rem 0.875rem 6.75rem;
+  }
+
+  .app-shell:has(> .feed-shell) {
+    padding: 0 0 5.25rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     scroll-behavior: auto !important;
-    animation-duration: .01ms !important;
+    animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
