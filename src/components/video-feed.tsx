@@ -631,6 +631,17 @@ export function VideoFeed({ className }: { className?: string }) {
                   +{post.points.toLocaleString("pt-BR")}
                 </strong>
               </div>
+              <button
+                type="button"
+                onClick={() => toggleMute(post.id)}
+                aria-label={isMuted ? "Ativar som" : "Silenciar vídeo"}
+                className={clsx(
+                  "absolute right-3 top-[calc(env(safe-area-inset-top)+4.75rem)] z-20 grid size-9 place-items-center rounded-full border border-white/10 bg-black/45 text-white/75 shadow-lg backdrop-blur-md transition hover:bg-black/70 hover:text-white active:scale-90 md:top-20",
+                  !isMuted && "border-aura/30 text-aura",
+                )}
+              >
+                {isMuted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+              </button>
 
               <AnimatePresence>
                 {auraBurst === post.id ? (
@@ -671,14 +682,14 @@ export function VideoFeed({ className }: { className?: string }) {
                       </button>
                     ) : null}
                   </div>
-                  <p className="mt-1.5 line-clamp-2 max-w-lg text-xs font-medium leading-4 text-white sm:text-sm sm:leading-5">
+                  <p className="mt-1.5 line-clamp-1 max-w-lg text-xs font-medium leading-4 text-white sm:text-sm sm:leading-5">
                     {post.caption}
                   </p>
-                  <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-3 backdrop-blur-lg">
+                  <div className="feed-ai-summary mt-2 rounded-xl border border-white/10 bg-black/45 px-3 py-2 backdrop-blur-lg">
                     <p className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.16em] text-aura">
                       <Sparkles size={12} /> Leitura da IA
                     </p>
-                    <p className="mt-1.5 line-clamp-3 text-xs leading-5 text-zinc-300">
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-300 sm:text-xs">
                       {post.aiSummary}
                     </p>
                   </div>
@@ -703,17 +714,6 @@ export function VideoFeed({ className }: { className?: string }) {
                       className="size-11 border-2 border-white"
                     />
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => toggleMute(post.id)}
-                    aria-label={isMuted ? "Ativar som" : "Silenciar vídeo"}
-                    className={actionClass}
-                  >
-                    {isMuted ? <VolumeX size={27} /> : <Volume2 size={27} />}
-                    <span className="text-[9px] font-bold">
-                      {isMuted ? "Mudo" : "Som"}
-                    </span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => void interact(post, "like")}
