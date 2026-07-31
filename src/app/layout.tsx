@@ -1,22 +1,21 @@
 import type { Metadata } from "next";
-import "@spectre-ui/core/styles.css";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
-import { Providers } from "@/components/providers";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "AuraRank",
-  description: "Transforme presença em pontos de aura.",
+  title: "AuraRank — Sua presença vale pontos",
+  description: "Poste seus melhores momentos, farme aura e dispute o topo.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className={inter.variable}>
       <body className="min-h-dvh bg-black text-white antialiased">
-        <Providers>
-          <Nav />
-          <main className="app-shell">{children}</main>
-        </Providers>
+        <Nav />
+        <main className="app-shell">{children}</main>
       </body>
     </html>
   );
