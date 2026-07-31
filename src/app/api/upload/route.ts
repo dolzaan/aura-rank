@@ -24,6 +24,10 @@ export async function POST(request: Request) {
       body,
       request,
       getSignedToken: async (pathname) => {
+        const storeId = process.env.BLOB_STORE_ID;
+        if (!storeId) {
+          throw new Error("Armazenamento Blob não conectado ao projeto.");
+        }
         const isVideo = pathname.startsWith(`videos/${session.user.id}/`);
         const isAvatar = pathname.startsWith(`avatars/${session.user.id}/`);
         if ((!isVideo && !isAvatar) || pathname.includes("..")) {
@@ -39,6 +43,7 @@ export async function POST(request: Request) {
           validUntil,
         };
         const token = await issueSignedToken({
+          storeId,
           pathname,
           operations: ["put"],
           ...constraints,

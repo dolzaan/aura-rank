@@ -111,6 +111,7 @@ function Avatar({
           fill
           sizes="48px"
           className="object-cover"
+          unoptimized
         />
       ) : (
         initials(name)
@@ -541,7 +542,7 @@ export function VideoFeed({ className }: { className?: string }) {
                       </button>
                     ) : null}
                   </div>
-                  <p className="mt-2 max-w-xl text-sm font-medium leading-5 text-white">
+                  <p className="mt-1.5 line-clamp-2 max-w-lg text-xs font-medium leading-4 text-white sm:text-sm sm:leading-5">
                     {post.caption}
                   </p>
                   <div className="mt-3 rounded-xl border border-white/10 bg-black/45 p-3 backdrop-blur-lg">

@@ -59,6 +59,7 @@ export default async function Perfil({
                 priority
                 sizes="112px"
                 className="object-cover"
+                unoptimized
               />
             ) : (
               (user.name || user.username)

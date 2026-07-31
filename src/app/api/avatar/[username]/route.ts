@@ -14,7 +14,12 @@ export async function GET(
   if (!user.image.includes(".blob.vercel-storage.com")) {
     return Response.redirect(user.image);
   }
-  const result = await get(user.image, { access: "private" });
+  const result = await get(user.image, {
+    access: "private",
+    ...(process.env.BLOB_STORE_ID
+      ? { storeId: process.env.BLOB_STORE_ID }
+      : {}),
+  });
   if (!result || result.statusCode !== 200) return new Response(null, { status: 404 });
   const headers = new Headers();
   result.headers.forEach((value, key) => headers.set(key, value));
