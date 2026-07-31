@@ -1,9 +1,32 @@
 import { NextResponse } from "next/server";
 import { issueSignedToken, presignUrl } from "@vercel/blob";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 const VIDEO_URL_LIFETIME = 60 * 60 * 1000;
+const FEED_PAGE_SIZE = 8;
+
+function parseCursor(value: string | null) {
+  const cursor = Number.parseInt(value || "0", 10);
+  return Number.isFinite(cursor) && cursor > 0 ? cursor : 0;
+}
+
+function diversifyAuthors<T extends { userId: string }>(videos: T[]) {
+  const pending = [...videos];
+  const diversified: T[] = [];
+
+  while (pending.length > 0) {
+    const previousAuthor = diversified.at(-1)?.userId;
+    const differentAuthorIndex = previousAuthor
+      ? pending.findIndex((video) => video.userId !== previousAuthor)
+      : 0;
+    const nextIndex = differentAuthorIndex >= 0 ? differentAuthorIndex : 0;
+    diversified.push(pending.splice(nextIndex, 1)[0]);
+  }
+
+  return diversified;
+}
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -11,19 +34,58 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Entre para ver o feed." }, { status: 401 });
   }
   const currentUserId = session.user.id;
-  const followingOnly =
-    new URL(request.url).searchParams.get("mode") === "following";
+  const searchParams = new URL(request.url).searchParams;
+  const followingOnly = searchParams.get("mode") === "following";
+  const cursor = parseCursor(searchParams.get("cursor"));
+  const seed = (searchParams.get("seed") || crypto.randomUUID()).slice(0, 80);
 
-  const videos = await prisma.videoSubmission.findMany({
+  const followingFilter = followingOnly
+    ? Prisma.sql`
+        AND EXISTS (
+          SELECT 1
+          FROM "Follow" AS follow
+          WHERE follow."followingId" = video."userId"
+            AND follow."followerId" = ${currentUserId}
+        )
+      `
+    : Prisma.empty;
+
+  // A seed keeps pagination stable while producing a different order for each
+  // feed session. Ordering IDs in SQL avoids loading the whole catalog at once.
+  const rankedVideoIds = await prisma.$queryRaw<Array<{ id: string }>>(
+    Prisma.sql`
+      SELECT video."id"
+      FROM "VideoSubmission" AS video
+      INNER JOIN "User" AS author ON author."id" = video."userId"
+      WHERE video."status" = 'APPROVED'
+        AND video."videoUrl" LIKE 'https://%'
+        AND author."username" IS NOT NULL
+        ${followingFilter}
+      ORDER BY
+        CASE WHEN video."userId" = ${currentUserId} THEN 1 ELSE 0 END,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM "VideoLike" AS liked
+          WHERE liked."videoId" = video."id"
+            AND liked."userId" = ${currentUserId}
+        ) OR EXISTS (
+          SELECT 1 FROM "SavedVideo" AS saved
+          WHERE saved."videoId" = video."id"
+            AND saved."userId" = ${currentUserId}
+        ) THEN 1 ELSE 0 END,
+        md5(CAST(${seed} AS TEXT) || ':' || video."id")
+      OFFSET ${cursor}
+      LIMIT ${FEED_PAGE_SIZE + 1}
+    `,
+  );
+
+  const hasMore = rankedVideoIds.length > FEED_PAGE_SIZE;
+  const pageIds = rankedVideoIds
+    .slice(0, FEED_PAGE_SIZE)
+    .map((video) => video.id);
+
+  const unorderedVideos = await prisma.videoSubmission.findMany({
     where: {
-      status: "APPROVED",
-      videoUrl: { startsWith: "https://" },
-      user: {
-        username: { not: null },
-        ...(followingOnly
-          ? { followers: { some: { followerId: currentUserId } } }
-          : {}),
-      },
+      id: { in: pageIds },
     },
     include: {
       user: {
@@ -60,9 +122,17 @@ export async function GET(request: Request) {
         },
       },
     },
-    orderBy: { createdAt: "desc" },
-    take: 30,
   });
+
+  const videosById = new Map(
+    unorderedVideos.map((video) => [video.id, video]),
+  );
+  const videos = diversifyAuthors(
+    pageIds.flatMap((id) => {
+      const video = videosById.get(id);
+      return video ? [video] : [];
+    }),
+  );
 
   const hasPrivateVideos = videos.some((video) =>
     video.videoUrl.includes(".private.blob.vercel-storage.com"),
@@ -83,6 +153,8 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
+    seed,
+    nextCursor: hasMore ? String(cursor + pageIds.length) : null,
     posts: await Promise.all(videos.map(async (video) => {
       const analysis =
         video.analysis && typeof video.analysis === "object"
@@ -159,5 +231,7 @@ export async function GET(request: Request) {
         },
       };
     })),
+  }, {
+    headers: { "Cache-Control": "private, no-store" },
   });
 }

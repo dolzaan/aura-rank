@@ -57,6 +57,12 @@ type FeedPost = {
   sourceName: string | null;
 };
 
+type FeedPage = {
+  posts: FeedPost[];
+  nextCursor: string | null;
+  seed: string;
+};
+
 type CommentItem = {
   id: string;
   body: string;
@@ -88,6 +94,42 @@ function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function createFeedSeed() {
+  const values = crypto.getRandomValues(new Uint32Array(4));
+  return Array.from(values, (value) => value.toString(36)).join("-");
+}
+
+async function requestFeedPage({
+  mode,
+  seed,
+  cursor,
+  signal,
+}: {
+  mode: "following" | "foryou";
+  seed: string;
+  cursor?: string | null;
+  signal?: AbortSignal;
+}) {
+  const params = new URLSearchParams({ seed });
+  if (mode === "following") params.set("mode", "following");
+  if (cursor) params.set("cursor", cursor);
+
+  const response = await fetch(`/api/feed?${params.toString()}`, {
+    cache: "no-store",
+    signal,
+  });
+  const payload = (await response.json()) as Partial<FeedPage> & {
+    error?: string;
+  };
+  if (!response.ok) throw new Error(payload.error || "Feed indisponível");
+
+  return {
+    posts: payload.posts || [],
+    nextCursor: payload.nextCursor || null,
+    seed: payload.seed || seed,
+  } satisfies FeedPage;
 }
 
 function Avatar({
@@ -128,6 +170,9 @@ export function VideoFeed({ className }: { className?: string }) {
   const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
   const [mode, setMode] = useState<"following" | "foryou">("foryou");
   const [feedLoading, setFeedLoading] = useState(true);
+  const [feedLoadingMore, setFeedLoadingMore] = useState(false);
+  const [feedHasMore, setFeedHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [commentVideoId, setCommentVideoId] = useState<string | null>(null);
@@ -146,34 +191,40 @@ export function VideoFeed({ className }: { className?: string }) {
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const burstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feedSeedRef = useRef("");
+  const feedRequestIdRef = useRef(0);
+  const feedLoadingMoreRef = useRef(false);
   const activeVideoId = feedPosts[activeIndex]?.id || null;
 
   useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/feed${mode === "following" ? "?mode=following" : ""}`, {
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        const payload = (await response.json()) as {
-          posts?: FeedPost[];
-          error?: string;
-        };
-        if (!response.ok) throw new Error(payload.error);
-        return payload.posts || [];
-      })
-      .then((posts) => {
-        if (cancelled) return;
-        setFeedPosts(posts);
+    const controller = new AbortController();
+    const requestId = ++feedRequestIdRef.current;
+    const seed = createFeedSeed();
+    feedSeedRef.current = seed;
+    feedLoadingMoreRef.current = false;
+
+    requestFeedPage({ mode, seed, signal: controller.signal })
+      .then((page) => {
+        if (requestId !== feedRequestIdRef.current) return;
+        feedSeedRef.current = page.seed;
+        setFeedLoadingMore(false);
+        setFeedPosts(page.posts);
+        setNextCursor(page.nextCursor);
+        setFeedHasMore(Boolean(page.nextCursor));
         setActiveIndex(0);
       })
-      .catch(() => {
-        if (!cancelled) setToast("Não foi possível carregar o feed");
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (requestId === feedRequestIdRef.current) {
+          setToast("Não foi possível carregar o feed");
+        }
       })
       .finally(() => {
-        if (!cancelled) setFeedLoading(false);
+        if (requestId === feedRequestIdRef.current) setFeedLoading(false);
       });
+
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [mode]);
 
@@ -300,6 +351,49 @@ export function VideoFeed({ className }: { className?: string }) {
       Math.max(0, Math.round(container.scrollTop / container.clientHeight)),
     );
     if (nextIndex !== activeIndex) setActiveIndex(nextIndex);
+    if (nextIndex >= feedPosts.length - 3) void loadMoreFeed();
+  }
+
+  async function loadMoreFeed() {
+    if (
+      feedLoading ||
+      feedLoadingMoreRef.current ||
+      !feedHasMore ||
+      !nextCursor
+    ) {
+      return;
+    }
+
+    const requestId = feedRequestIdRef.current;
+    const seed = feedSeedRef.current;
+    feedLoadingMoreRef.current = true;
+    setFeedLoadingMore(true);
+    try {
+      const page = await requestFeedPage({ mode, seed, cursor: nextCursor });
+      if (
+        requestId !== feedRequestIdRef.current ||
+        seed !== feedSeedRef.current
+      ) {
+        return;
+      }
+
+      setFeedPosts((current) => {
+        const loadedIds = new Set(current.map((post) => post.id));
+        const newPosts = page.posts.filter((post) => !loadedIds.has(post.id));
+        return [...current, ...newPosts];
+      });
+      setNextCursor(page.nextCursor);
+      setFeedHasMore(Boolean(page.nextCursor));
+    } catch {
+      if (requestId === feedRequestIdRef.current) {
+        showToast("Não foi possível carregar mais vídeos");
+      }
+    } finally {
+      if (requestId === feedRequestIdRef.current) {
+        feedLoadingMoreRef.current = false;
+        setFeedLoadingMore(false);
+      }
+    }
   }
 
   async function toggleFollow(post: FeedPost) {
@@ -600,7 +694,11 @@ export function VideoFeed({ className }: { className?: string }) {
                 playsInline
                 loop
                 autoPlay={index === activeIndex}
-                preload={index === activeIndex ? "metadata" : "none"}
+                preload={
+                  index >= activeIndex && index <= activeIndex + 1
+                    ? "metadata"
+                    : "none"
+                }
                 onLoadStart={() => setVideoBuffering(post.id, true)}
                 onLoadedMetadata={(event) => {
                   event.currentTarget.defaultPlaybackRate = 1;
@@ -802,6 +900,21 @@ export function VideoFeed({ className }: { className?: string }) {
           ))}
         </div>
       )}
+
+      <AnimatePresence>
+        {feedLoadingMore ? (
+          <motion.div
+            aria-live="polite"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="pointer-events-none absolute bottom-[calc(78px+env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/10 bg-black/70 px-3 py-2 text-[10px] font-bold text-zinc-300 backdrop-blur-xl md:bottom-5"
+          >
+            <LoaderCircle className="animate-spin text-aura" size={14} />
+            Buscando mais aura
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {commentVideoId ? (
