@@ -16,4 +16,10 @@ const deploy = spawnSync(executable, ["prisma", "migrate", "deploy"], {
   stdio: "inherit",
 });
 
-process.exit(deploy.status ?? 1);
+if (deploy.status !== 0) process.exit(deploy.status ?? 1);
+
+const generate = spawnSync(executable, ["prisma", "generate"], {
+  stdio: "inherit",
+});
+
+process.exit(generate.status ?? 1);
