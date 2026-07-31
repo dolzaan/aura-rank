@@ -16,21 +16,44 @@ const requestSchema = z.object({
   fileName: z.string().trim().min(1).max(180),
 });
 
-const geminiAnalysisSchema = z.object({
-  confidence: z.number().int().min(0).max(100),
-  presence: z.number().int().min(0).max(250),
-  execution: z.number().int().min(0).max(250),
-  originality: z.number().int().min(0).max(250),
-  impact: z.number().int().min(0).max(250),
-  summary: z.string().trim().min(20).max(320),
-  creatorFeedback: z.string().trim().min(20).max(420),
-  publicCaption: z.string().trim().min(15).max(240),
-  mainMoment: z.string().trim().min(2).max(20),
-  strengths: z.array(z.string().trim().min(2).max(80)).min(1).max(3),
+const rawGeminiAnalysisSchema = z.object({
+  confidence: z.number().finite(),
+  presence: z.number().finite(),
+  execution: z.number().finite(),
+  originality: z.number().finite(),
+  impact: z.number().finite(),
+  summary: z.string().trim().min(1),
+  creatorFeedback: z.string().trim().min(1),
+  publicCaption: z.string().trim().min(1),
+  mainMoment: z.string().trim().min(1),
+  strengths: z.array(z.string().trim().min(1)).min(1),
   contentSafe: z.boolean(),
   suspectedReupload: z.boolean(),
   reviewRequired: z.boolean(),
 });
+
+function clampInteger(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, Math.round(value)));
+}
+
+function normalizeGeminiAnalysis(value: unknown) {
+  const analysis = rawGeminiAnalysisSchema.parse(value);
+  return {
+    ...analysis,
+    confidence: clampInteger(analysis.confidence, 0, 100),
+    presence: clampInteger(analysis.presence, 0, 250),
+    execution: clampInteger(analysis.execution, 0, 250),
+    originality: clampInteger(analysis.originality, 0, 250),
+    impact: clampInteger(analysis.impact, 0, 250),
+    summary: analysis.summary.slice(0, 320),
+    creatorFeedback: analysis.creatorFeedback.slice(0, 420),
+    publicCaption: analysis.publicCaption.slice(0, 240),
+    mainMoment: analysis.mainMoment.slice(0, 20),
+    strengths: analysis.strengths
+      .slice(0, 3)
+      .map((strength) => strength.slice(0, 80)),
+  };
+}
 
 type GeminiFile = {
   name: string;
@@ -42,16 +65,35 @@ type GeminiFile = {
 const responseSchema = {
   type: "OBJECT",
   properties: {
-    confidence: { type: "INTEGER" },
-    presence: { type: "INTEGER" },
-    execution: { type: "INTEGER" },
-    originality: { type: "INTEGER" },
-    impact: { type: "INTEGER" },
-    summary: { type: "STRING" },
-    creatorFeedback: { type: "STRING" },
-    publicCaption: { type: "STRING" },
-    mainMoment: { type: "STRING" },
-    strengths: { type: "ARRAY", items: { type: "STRING" } },
+    confidence: {
+      type: "INTEGER",
+      minimum: 0,
+      maximum: 100,
+      description: "Confiança da análise, de 0 a 100.",
+    },
+    presence: { type: "INTEGER", minimum: 0, maximum: 250 },
+    execution: { type: "INTEGER", minimum: 0, maximum: 250 },
+    originality: { type: "INTEGER", minimum: 0, maximum: 250 },
+    impact: { type: "INTEGER", minimum: 0, maximum: 250 },
+    summary: { type: "STRING", description: "Resumo factual do vídeo." },
+    creatorFeedback: {
+      type: "STRING",
+      description: "Feedback específico e construtivo para o autor.",
+    },
+    publicCaption: {
+      type: "STRING",
+      description: "Resumo curto da análise para aparecer no feed.",
+    },
+    mainMoment: {
+      type: "STRING",
+      description: "Timestamp principal, como 00:08.",
+    },
+    strengths: {
+      type: "ARRAY",
+      items: { type: "STRING" },
+      minItems: 1,
+      maxItems: 3,
+    },
     contentSafe: { type: "BOOLEAN" },
     suspectedReupload: { type: "BOOLEAN" },
     reviewRequired: { type: "BOOLEAN" },
@@ -160,51 +202,66 @@ Produza em português do Brasil:
 - mainMoment: timestamp aproximado do ponto principal;
 - strengths: de 1 a 3 qualidades concretas.
 
-Se não houver material suficiente para avaliar, use notas baixas e confiança baixa. Marque reviewRequired quando houver dúvida de segurança, conteúdo impróprio ou provável reenvio. Legenda informada pelo usuário: ${caption || "(sem legenda)"}.`;
+confidence deve ser um número inteiro entre 0 e 100 e representa apenas o quanto você confia na análise. Uma nota baixa ou confiança baixa não significa que o vídeo deve ser rejeitado.
 
-  const response = await fetch(
-    apiUrl(`/v1beta/models/${encodeURIComponent(model)}:generateContent`, apiKey),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                file_data: {
-                  mime_type: file.mimeType,
-                  file_uri: file.uri,
+Se não houver material suficiente para avaliar, use notas baixas e confiança baixa. Marque contentSafe como false apenas quando houver conteúdo potencialmente impróprio. reviewRequired e suspectedReupload são somente sinais auxiliares e não devem depender da pontuação. Legenda informada pelo usuário: ${caption || "(sem legenda)"}.`;
+
+  let lastValidationError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetch(
+      apiUrl(`/v1beta/models/${encodeURIComponent(model)}:generateContent`, apiKey),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  file_data: {
+                    mime_type: file.mimeType,
+                    file_uri: file.uri,
+                  },
                 },
-              },
-              { text: prompt },
-            ],
+                { text: prompt },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: attempt === 0 ? 0.35 : 0.1,
+            response_mime_type: "application/json",
+            response_schema: responseSchema,
           },
-        ],
-        generationConfig: {
-          temperature: 0.35,
-          response_mime_type: "application/json",
-          response_schema: responseSchema,
-        },
-      }),
-    },
-  );
+        }),
+      },
+    );
 
-  const payload = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    error?: { message?: string };
-  };
-  if (!response.ok) {
-    throw new Error(payload.error?.message || `Gemini falhou (${response.status}).`);
+    const payload = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      throw new Error(payload.error?.message || `Gemini falhou (${response.status}).`);
+    }
+
+    const text = payload.candidates?.[0]?.content?.parts?.find(
+      (part) => part.text,
+    )?.text;
+    if (!text) throw new Error("O Gemini não devolveu uma análise.");
+
+    try {
+      return normalizeGeminiAnalysis(JSON.parse(text));
+    } catch (error) {
+      lastValidationError = error;
+      console.warn("[api/analyze] Resposta inválida do Gemini; repetindo.", {
+        attempt: attempt + 1,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
-  const text = payload.candidates?.[0]?.content?.parts?.find(
-    (part) => part.text,
-  )?.text;
-  if (!text) throw new Error("O Gemini não devolveu uma análise.");
-
-  return geminiAnalysisSchema.parse(JSON.parse(text));
+  throw lastValidationError || new Error("O Gemini devolveu uma análise inválida.");
 }
 
 export async function POST(request: Request) {
@@ -268,8 +325,7 @@ export async function POST(request: Request) {
       analysis.execution +
       analysis.originality +
       analysis.impact;
-    const status =
-      analysis.contentSafe && !analysis.reviewRequired ? "APPROVED" : "REVIEW";
+    const status = analysis.contentSafe ? "APPROVED" : "REVIEW";
 
     const submission = await prisma.$transaction(async (database) => {
       const created = await database.videoSubmission.create({
