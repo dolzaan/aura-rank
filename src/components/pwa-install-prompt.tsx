@@ -86,7 +86,7 @@ export function PwaInstallPrompt() {
   return (
     <aside
       aria-label="Instalar AuraTok"
-      className="fixed inset-x-3 bottom-24 z-[65] mx-auto max-w-md rounded-2xl border border-aura/30 bg-[#0b0b0b]/95 p-4 shadow-[0_0_55px_rgba(199,255,50,.16)] backdrop-blur-2xl md:hidden"
+      className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[65] mx-auto max-w-md rounded-2xl border border-aura/30 bg-[#0b0b0b]/95 p-4 shadow-[0_0_55px_rgba(199,255,50,.16)] backdrop-blur-2xl md:hidden"
     >
       <div className="flex items-start gap-3">
         <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-aura text-black">

@@ -16,16 +16,10 @@ const links = [
 
 export function Nav() {
   const pathname = usePathname();
-  const isFeed = pathname === "/feed";
 
   return (
     <>
-      <header
-        className={clsx(
-          "fixed inset-x-0 top-0 z-50 hidden border-b border-white/[.07] bg-[#050505]/80 backdrop-blur-2xl md:block",
-          isFeed && "md:hidden",
-        )}
-      >
+      <header className="fixed inset-x-0 top-0 z-50 hidden border-b border-white/[.07] bg-[#050505]/90 backdrop-blur-2xl md:block">
         <div className="mx-auto flex h-[76px] max-w-[1240px] items-center justify-between px-6">
           <Link href="/" aria-label="AuraTok — início">
             <BrandLogo className="text-[21px]" markClassName="size-8" />
@@ -68,7 +62,7 @@ export function Nav() {
 
       <nav
         aria-label="Navegação principal mobile"
-        className="fixed inset-x-3 bottom-[max(.75rem,env(safe-area-inset-bottom))] z-50 grid grid-cols-5 rounded-[20px] border border-white/10 bg-[#080808]/92 p-1.5 shadow-2xl shadow-black/80 backdrop-blur-2xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 grid min-h-[64px] grid-cols-5 border-t border-white/10 bg-[#080808]/[.98] px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-10px_30px_rgba(0,0,0,.42)] backdrop-blur-2xl md:hidden"
       >
         {links.map(([label, href, Icon]) => {
           const active =
@@ -81,13 +75,20 @@ export function Nav() {
               href={href}
               aria-label={label}
               className={clsx(
-                "flex min-h-[54px] flex-col items-center justify-center gap-1 rounded-[14px] text-[10px] font-bold transition active:scale-95",
+                "relative flex min-h-[64px] flex-col items-center justify-center gap-1 text-[9px] font-bold transition active:scale-95 min-[380px]:text-[10px]",
                 active
-                  ? "bg-aura text-black"
+                  ? "text-aura before:absolute before:inset-x-4 before:top-0 before:h-0.5 before:rounded-b-full before:bg-aura before:shadow-[0_0_12px_#c7ff32]"
                   : "text-zinc-500 active:bg-white/10 active:text-white",
               )}
             >
-              <Icon size={20} strokeWidth={active ? 2.6 : 2} />
+              <Icon
+                size={href === "/upload" ? 23 : 21}
+                strokeWidth={active ? 2.7 : 2}
+                className={clsx(
+                  href === "/upload" &&
+                    "rounded-lg border border-white/30 px-1 text-white",
+                )}
+              />
               <span>{label}</span>
             </Link>
           );

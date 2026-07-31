@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { clsx } from "clsx";
-import { BrandLogo, BrandMark } from "@/components/brand";
+import { BrandMark } from "@/components/brand";
 import { posts as demoPosts } from "@/lib/mock";
 
 type FeedPost = {
@@ -312,31 +312,34 @@ export function VideoFeed({ className }: { className?: string }) {
   return (
     <section
       className={clsx(
-        "feed-shell relative mx-auto h-dvh w-full max-w-[520px] overflow-hidden bg-black md:mt-16 md:h-[calc(100dvh-4rem)] md:rounded-t-[28px] md:border-x md:border-t md:border-white/10",
+        "feed-shell relative mx-auto h-dvh w-full overflow-hidden bg-black md:mt-[76px] md:h-[calc(100dvh-76px)] md:max-w-[560px] md:border-x md:border-white/10 lg:max-w-[620px] xl:max-w-[680px]",
         className,
       )}
     >
-      <header className="pointer-events-none fixed left-1/2 top-0 z-40 flex h-[70px] w-full max-w-[520px] -translate-x-1/2 items-center justify-between bg-gradient-to-b from-black via-black/60 to-transparent px-4 md:top-16">
-        <div className="w-[84px]">
+      <header
+        data-testid="feed-header"
+        className="pointer-events-none fixed left-1/2 top-0 z-40 grid h-[calc(60px+env(safe-area-inset-top))] w-full -translate-x-1/2 grid-cols-[42px_minmax(0,1fr)_42px] items-center bg-gradient-to-b from-black via-black/65 to-transparent px-3 pt-[env(safe-area-inset-top)] md:top-[76px] md:h-16 md:max-w-[560px] md:pt-0 lg:max-w-[620px] xl:max-w-[680px]"
+      >
+        <div className="flex items-center">
           <AnimatePresence>
             {activeIndex === 0 ? (
               <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
               >
                 <Link
                   href="/"
-                  className="pointer-events-auto"
+                  className="pointer-events-auto grid size-8 place-items-center text-aura md:hidden"
                   aria-label="AuraTok — início"
                 >
-                  <BrandLogo className="text-sm" markClassName="size-5" />
+                  <BrandMark className="size-6" />
                 </Link>
               </motion.div>
             ) : null}
           </AnimatePresence>
         </div>
-        <div className="pointer-events-auto flex items-center gap-5 text-xs font-bold uppercase tracking-[0.12em]">
+        <div className="pointer-events-auto flex min-w-0 items-center justify-center gap-3 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.08em] min-[360px]:gap-5 min-[360px]:text-xs min-[360px]:tracking-[0.12em]">
           <button type="button" className="text-zinc-600">
             Seguindo
           </button>
@@ -347,11 +350,11 @@ export function VideoFeed({ className }: { className?: string }) {
             Para você
           </button>
         </div>
-        <div className="flex w-[84px] justify-end">
+        <div className="flex justify-end">
           <Link
             href="/upload"
             aria-label="Publicar vídeo"
-            className="pointer-events-auto grid size-9 place-items-center rounded-xl bg-aura text-black"
+            className="pointer-events-auto grid size-9 place-items-center rounded-lg bg-aura text-black md:bg-white/10 md:text-white"
           >
             <Plus size={18} strokeWidth={2.8} />
           </Link>
@@ -382,7 +385,7 @@ export function VideoFeed({ className }: { className?: string }) {
               id={`video-${post.id}`}
               key={post.id}
               onDoubleClick={() => toggleLike(post.id)}
-              className="relative h-full min-h-[620px] snap-start snap-always overflow-hidden bg-zinc-950"
+              className="relative h-full min-h-0 snap-start snap-always overflow-hidden bg-zinc-950"
             >
               {post.videoUrl ? (
                 <video
@@ -400,7 +403,7 @@ export function VideoFeed({ className }: { className?: string }) {
                   alt="Skatista em uma manobra urbana"
                   fill
                   priority
-                  sizes="(max-width: 767px) 100vw, 520px"
+                  sizes="(max-width: 767px) 100vw, (max-width: 1023px) 560px, (max-width: 1279px) 620px, 680px"
                   className="object-cover"
                 />
               ) : (
@@ -412,7 +415,7 @@ export function VideoFeed({ className }: { className?: string }) {
                 initial={{ opacity: 0, y: -12, scale: 0.96 }}
                 whileInView={{ opacity: 1, y: 0, scale: 1 }}
                 viewport={{ amount: 0.7 }}
-                className="absolute left-4 top-20 z-20 rounded-xl border border-aura/25 bg-black/60 px-3 py-2.5 backdrop-blur-xl"
+                className="feed-score-card absolute left-3 top-[calc(env(safe-area-inset-top)+4.5rem)] z-20 rounded-xl border border-aura/25 bg-black/60 px-3 py-2 backdrop-blur-xl min-[380px]:left-4 md:top-20 md:px-3 md:py-2.5"
               >
                 <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-400">
                   Aura capturada
@@ -444,18 +447,21 @@ export function VideoFeed({ className }: { className?: string }) {
                 ) : null}
               </AnimatePresence>
 
-              <div className="absolute inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_56px] items-end gap-4 px-4 pb-24 pt-24 md:pb-8">
+              <div
+                data-testid="feed-content"
+                className="feed-content absolute inset-x-0 bottom-0 z-20 grid grid-cols-[minmax(0,1fr)_48px] items-end gap-2 px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] pt-24 min-[380px]:grid-cols-[minmax(0,1fr)_52px] min-[380px]:gap-3 min-[380px]:px-4 md:grid-cols-[minmax(0,1fr)_56px] md:gap-4 md:px-5 md:pb-8"
+              >
                 <div className="min-w-0">
-                  <div className="mb-3 flex items-center gap-2.5">
+                  <div className="mb-2 flex min-w-0 items-center gap-2 min-[380px]:mb-3 min-[380px]:gap-2.5">
                     <Link
                       href={`/perfil/${post.user.username}`}
-                      className="grid size-10 place-items-center rounded-xl border border-white/20 bg-zinc-900 text-[11px] font-black"
+                      className="grid size-9 shrink-0 place-items-center rounded-xl border border-white/20 bg-zinc-900 text-[10px] font-black min-[380px]:size-10 min-[380px]:text-[11px]"
                     >
                       {post.user.avatar}
                     </Link>
                     <Link
                       href={`/perfil/${post.user.username}`}
-                      className="text-sm font-bold"
+                      className="min-w-0 truncate text-xs font-bold min-[380px]:text-sm"
                     >
                       @{post.user.username}
                     </Link>
@@ -464,7 +470,7 @@ export function VideoFeed({ className }: { className?: string }) {
                       aria-pressed={isFollowing}
                       onClick={() => toggleFollow(post.user.username)}
                       className={clsx(
-                        "min-h-7 rounded-lg px-3 text-[10px] font-black uppercase tracking-wider transition active:scale-95",
+                        "min-h-7 shrink-0 rounded-lg px-2 text-[9px] font-black uppercase tracking-wider transition active:scale-95 min-[380px]:px-3 min-[380px]:text-[10px]",
                         isFollowing
                           ? "bg-aura text-black"
                           : "border border-white/30 text-white",
@@ -479,21 +485,22 @@ export function VideoFeed({ className }: { className?: string }) {
                       )}
                     </button>
                   </div>
-                  <p className="max-w-sm text-sm leading-6 text-white/95">
+                  <p className="line-clamp-2 max-w-md text-xs leading-5 text-white/95 min-[380px]:text-sm min-[380px]:leading-6">
                     {post.caption}
                   </p>
-                  <div className="mt-3 max-w-sm rounded-xl border border-aura/15 bg-black/45 px-3 py-2 backdrop-blur-md">
+                  <div className="feed-ai-summary mt-2 max-w-md rounded-xl border border-aura/15 bg-black/45 px-2.5 py-2 backdrop-blur-md min-[380px]:mt-3 min-[380px]:px-3">
                     <p className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.16em] text-aura">
                       <Sparkles size={11} /> Leitura da IA
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-zinc-300">
+                    <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-300 min-[380px]:text-xs min-[380px]:leading-5">
                       {post.aiSummary}
                     </p>
                   </div>
                 </div>
 
                 <aside
-                  className="flex flex-col items-center gap-5 pb-1"
+                  data-testid="feed-actions"
+                  className="feed-actions flex flex-col items-center gap-4 pb-1 min-[380px]:gap-5"
                   aria-label="Ações do vídeo"
                 >
                   <motion.button
@@ -560,7 +567,7 @@ export function VideoFeed({ className }: { className?: string }) {
             initial={{ opacity: 0, y: 18, scale: 0.94 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12 }}
-            className="fixed inset-x-0 bottom-28 z-[80] mx-auto flex w-fit items-center gap-2 rounded-full border border-aura/30 bg-aura px-4 py-2.5 text-xs font-black text-black md:bottom-8"
+            className="fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[80] mx-auto flex w-fit items-center gap-2 rounded-full border border-aura/30 bg-aura px-4 py-2.5 text-xs font-black text-black md:bottom-8"
           >
             <BrandMark className="size-4" />
             {toast}
@@ -588,7 +595,7 @@ export function VideoFeed({ className }: { className?: string }) {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[72dvh] w-full max-w-[520px] flex-col rounded-t-[28px] border border-white/10 bg-[#0b0b0b] pb-[env(safe-area-inset-bottom)] shadow-2xl"
+              className="fixed inset-x-0 bottom-0 z-[71] mx-auto flex max-h-[calc(100dvh-3.5rem)] w-full max-w-[520px] flex-col rounded-t-[28px] border border-white/10 bg-[#0b0b0b] pb-[env(safe-area-inset-bottom)] shadow-2xl md:max-h-[72dvh] md:max-w-[560px] lg:max-w-[620px]"
             >
               <div className="mx-auto mt-3 h-1 w-10 rounded-full bg-zinc-700" />
               <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
