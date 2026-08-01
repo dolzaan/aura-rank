@@ -38,6 +38,7 @@ export async function GET(request: Request) {
   const followingOnly = searchParams.get("mode") === "following";
   const cursor = parseCursor(searchParams.get("cursor"));
   const seed = (searchParams.get("seed") || crypto.randomUUID()).slice(0, 80);
+  const requestedVideoId = searchParams.get("video")?.slice(0, 64) || "";
 
   const followingFilter = followingOnly
     ? Prisma.sql`
@@ -62,6 +63,8 @@ export async function GET(request: Request) {
         AND author."username" IS NOT NULL
         ${followingFilter}
       ORDER BY (
+        CASE WHEN video."id" = ${requestedVideoId} THEN 2.0 ELSE 0.0 END
+        +
         -- Discovery remains the dominant signal, so every session feels new.
         (
           ('x' || substr(

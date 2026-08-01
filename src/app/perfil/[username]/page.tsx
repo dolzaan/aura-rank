@@ -28,6 +28,7 @@ export default async function Perfil({
         where: { status: "APPROVED" },
         include: { _count: { select: { likes: true, comments: true } } },
         orderBy: { createdAt: "desc" },
+        take: 24,
       },
       followers: {
         where: { followerId: session!.user.id },
@@ -152,7 +153,7 @@ export default async function Perfil({
                 : post.videoUrl;
               return (
                 <Link
-                  href={`/feed#video-${post.id}`}
+                  href={`/feed?video=${post.id}`}
                   key={post.id}
                   className="surface group relative aspect-[3/4] overflow-hidden"
                 >

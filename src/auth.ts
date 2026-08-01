@@ -74,25 +74,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       user.username = databaseUser.username;
       return true;
     },
-    async jwt({ token, user }) {
-      const email = user?.email || token.email;
-      if (!email) return token;
-      const databaseUser = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-          username: true,
-        },
-      });
-      if (databaseUser) {
-        token.sub = databaseUser.id;
-        token.name = databaseUser.name;
-        token.email = databaseUser.email;
-        token.picture = databaseUser.image;
-        token.username = databaseUser.username;
+    async jwt({ token, user, trigger }) {
+      if (user) {
+        token.sub = user.id;
+        token.name = user.name;
+        token.email = user.email;
+        token.picture = user.image;
+        token.username = user.username;
+        return token;
+      }
+
+      // Only refresh database-backed profile fields when SessionProvider.update()
+      // explicitly asks for it. Normal navigation can trust the signed JWT.
+      if (trigger === "update" && token.email) {
+        const databaseUser = await prisma.user.findUnique({
+          where: { email: token.email.toLowerCase() },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            username: true,
+          },
+        });
+        if (databaseUser) {
+          token.sub = databaseUser.id;
+          token.name = databaseUser.name;
+          token.email = databaseUser.email;
+          token.picture = databaseUser.image;
+          token.username = databaseUser.username;
+        }
       }
       return token;
     },

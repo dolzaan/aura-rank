@@ -70,6 +70,7 @@ export default async function Ranking() {
               <Link
                 href={`/perfil/${user.username}`}
                 key={user.id}
+                prefetch={false}
                 className="grid grid-cols-[42px_1fr_auto] items-center gap-3 border-b border-white/[.07] px-4 py-4 transition last:border-b-0 hover:bg-white/[.025] sm:grid-cols-[56px_1fr_auto] sm:px-6 sm:py-5"
               >
                 <div className="relative grid size-10 place-items-center rounded-xl bg-white/[.04] sm:size-12">

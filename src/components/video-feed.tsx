@@ -16,8 +16,8 @@ import {
   Heart,
   LoaderCircle,
   MessageCircle,
-  Plus,
   Play,
+  Search,
   Send,
   Share2,
   Sparkles,
@@ -105,16 +105,19 @@ async function requestFeedPage({
   mode,
   seed,
   cursor,
+  videoId,
   signal,
 }: {
   mode: "following" | "foryou";
   seed: string;
   cursor?: string | null;
+  videoId?: string;
   signal?: AbortSignal;
 }) {
   const params = new URLSearchParams({ seed });
   if (mode === "following") params.set("mode", "following");
   if (cursor) params.set("cursor", cursor);
+  if (videoId && !cursor) params.set("video", videoId);
 
   const response = await fetch(`/api/feed?${params.toString()}`, {
     cache: "no-store",
@@ -166,7 +169,13 @@ function Avatar({
   );
 }
 
-export function VideoFeed({ className }: { className?: string }) {
+export function VideoFeed({
+  className,
+  initialVideoId,
+}: {
+  className?: string;
+  initialVideoId?: string;
+}) {
   const [feedPosts, setFeedPosts] = useState<FeedPost[]>([]);
   const [mode, setMode] = useState<"following" | "foryou">("foryou");
   const [feedLoading, setFeedLoading] = useState(true);
@@ -195,6 +204,8 @@ export function VideoFeed({ className }: { className?: string }) {
   const feedSeedRef = useRef("");
   const feedRequestIdRef = useRef(0);
   const feedLoadingMoreRef = useRef(false);
+  const pendingInteractionsRef = useRef(new Set<string>());
+  const pendingFollowsRef = useRef(new Set<string>());
   const activeVideoId = feedPosts[activeIndex]?.id || null;
 
   useEffect(() => {
@@ -202,9 +213,13 @@ export function VideoFeed({ className }: { className?: string }) {
     const requestId = ++feedRequestIdRef.current;
     const seed = createFeedSeed();
     feedSeedRef.current = seed;
-    feedLoadingMoreRef.current = false;
 
-    requestFeedPage({ mode, seed, signal: controller.signal })
+    requestFeedPage({
+      mode,
+      seed,
+      videoId: initialVideoId,
+      signal: controller.signal,
+    })
       .then((page) => {
         if (requestId !== feedRequestIdRef.current) return;
         feedSeedRef.current = page.seed;
@@ -221,13 +236,17 @@ export function VideoFeed({ className }: { className?: string }) {
         }
       })
       .finally(() => {
-        if (requestId === feedRequestIdRef.current) setFeedLoading(false);
+        if (requestId === feedRequestIdRef.current) {
+          feedLoadingMoreRef.current = false;
+          setFeedLoading(false);
+          setFeedLoadingMore(false);
+        }
       });
 
     return () => {
       controller.abort();
     };
-  }, [mode, feedRevision]);
+  }, [initialVideoId, mode, feedRevision]);
 
   useEffect(
     () => () => {
@@ -398,10 +417,21 @@ export function VideoFeed({ className }: { className?: string }) {
   }
 
   async function toggleFollow(post: FeedPost) {
-    if (post.isOwn) return;
+    const username = post.user.username;
+    if (post.isOwn || pendingFollowsRef.current.has(username)) return;
+    const previousFollowing = post.isFollowing;
+    const optimisticFollowing = !previousFollowing;
+    pendingFollowsRef.current.add(username);
+    setFeedPosts((current) =>
+      current.map((item) =>
+        item.user.username === username
+          ? { ...item, isFollowing: optimisticFollowing }
+          : item,
+      ),
+    );
     try {
       const response = await fetch(
-        `/api/users/${encodeURIComponent(post.user.username)}/follow`,
+        `/api/users/${encodeURIComponent(username)}/follow`,
         { method: "POST" },
       );
       const payload = (await response.json()) as {
@@ -418,15 +448,55 @@ export function VideoFeed({ className }: { className?: string }) {
       );
       showToast(
         payload.following
-          ? `Agora você segue @${post.user.username}`
+          ? `Agora você segue @${username}`
           : "Você deixou de seguir",
       );
     } catch {
+      setFeedPosts((current) =>
+        current.map((item) =>
+          item.user.username === username
+            ? { ...item, isFollowing: previousFollowing }
+            : item,
+        ),
+      );
       showToast("Não foi possível atualizar");
+    } finally {
+      pendingFollowsRef.current.delete(username);
     }
   }
 
   async function interact(post: FeedPost, action: "like" | "save" | "share") {
+    const interactionKey = `${post.id}:${action}`;
+    if (pendingInteractionsRef.current.has(interactionKey)) return;
+    pendingInteractionsRef.current.add(interactionKey);
+
+    const optimisticActive =
+      action === "like" ? !post.isLiked : action === "save" ? !post.isSaved : true;
+    updatePost(post.id, {
+      ...(action === "like"
+        ? {
+            isLiked: optimisticActive,
+            likeCount: Math.max(0, post.likeCount + (optimisticActive ? 1 : -1)),
+          }
+        : {}),
+      ...(action === "save"
+        ? {
+            isSaved: optimisticActive,
+            saveCount: Math.max(0, post.saveCount + (optimisticActive ? 1 : -1)),
+          }
+        : {}),
+      ...(action === "share" ? { shareCount: post.shareCount + 1 } : {}),
+    });
+
+    if (action === "like" && optimisticActive) {
+      setAuraBurst(post.id);
+      if (burstTimer.current) clearTimeout(burstTimer.current);
+      burstTimer.current = setTimeout(() => setAuraBurst(null), 900);
+    }
+    if (action === "save") {
+      showToast(optimisticActive ? "Salvo na sua coleção" : "Removido dos salvos");
+    }
+
     try {
       const response = await fetch(`/api/videos/${post.id}/interactions`, {
         method: "POST",
@@ -448,16 +518,19 @@ export function VideoFeed({ className }: { className?: string }) {
         saveCount: payload.saveCount ?? post.saveCount,
         shareCount: payload.shareCount ?? post.shareCount,
       });
-      if (action === "like" && payload.active) {
-        setAuraBurst(post.id);
-        if (burstTimer.current) clearTimeout(burstTimer.current);
-        burstTimer.current = setTimeout(() => setAuraBurst(null), 900);
-      }
-      if (action === "save") {
-        showToast(payload.active ? "Salvo na sua coleção" : "Removido dos salvos");
-      }
     } catch {
+      updatePost(post.id, {
+        ...(action === "like"
+          ? { isLiked: post.isLiked, likeCount: post.likeCount }
+          : {}),
+        ...(action === "save"
+          ? { isSaved: post.isSaved, saveCount: post.saveCount }
+          : {}),
+        ...(action === "share" ? { shareCount: post.shareCount } : {}),
+      });
       showToast("Não foi possível atualizar");
+    } finally {
+      pendingInteractionsRef.current.delete(interactionKey);
     }
   }
 
@@ -465,7 +538,7 @@ export function VideoFeed({ className }: { className?: string }) {
     const shareData = {
       title: `Veja a aura de @${post.user.username}`,
       text: post.caption,
-      url: `${window.location.origin}/feed#video-${post.id}`,
+      url: `${window.location.origin}/feed?video=${post.id}`,
     };
     try {
       if (navigator.share) {
@@ -612,10 +685,12 @@ export function VideoFeed({ className }: { className?: string }) {
               type="button"
               onClick={() => {
                 if (item !== mode) {
-                  setFeedLoading(true);
+                  feedLoadingMoreRef.current = true;
+                  setFeedLoadingMore(true);
                   setMode(item);
                 } else {
-                  setFeedLoading(true);
+                  feedLoadingMoreRef.current = true;
+                  setFeedLoadingMore(true);
                   setFeedRevision((current) => current + 1);
                 }
               }}
@@ -632,11 +707,11 @@ export function VideoFeed({ className }: { className?: string }) {
         </div>
         <div className="flex justify-end">
           <Link
-            href="/upload"
-            aria-label="Publicar vídeo"
-            className="pointer-events-auto grid size-9 place-items-center rounded-lg bg-aura text-black md:bg-white/10 md:text-white"
+            href="/buscar"
+            aria-label="Pesquisar perfis e vídeos"
+            className="pointer-events-auto grid size-9 place-items-center rounded-full bg-black/45 text-white backdrop-blur-md transition hover:bg-white/10 hover:text-aura"
           >
-            <Plus size={18} strokeWidth={2.8} />
+            <Search size={19} strokeWidth={2.4} />
           </Link>
         </div>
       </header>
@@ -800,7 +875,11 @@ export function VideoFeed({ className }: { className?: string }) {
               <div className="absolute inset-x-0 bottom-[calc(64px+env(safe-area-inset-bottom))] z-20 flex items-end gap-3 px-4 pb-5 md:bottom-0 md:pb-7">
                 <div className="min-w-0 flex-1 pr-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Link href={`/perfil/${post.user.username}`} className="font-black">
+                    <Link
+                      href={`/perfil/${post.user.username}`}
+                      prefetch={index === activeIndex}
+                      className="font-black"
+                    >
                       @{post.user.username}
                     </Link>
                     {post.user.isDemo ? (
@@ -847,7 +926,10 @@ export function VideoFeed({ className }: { className?: string }) {
                 </div>
 
                 <aside aria-label="Ações do vídeo" className="flex w-12 shrink-0 flex-col items-center gap-5 pb-1">
-                  <Link href={`/perfil/${post.user.username}`}>
+                  <Link
+                    href={`/perfil/${post.user.username}`}
+                    prefetch={false}
+                  >
                     <Avatar
                       username={post.user.username}
                       name={post.user.name}

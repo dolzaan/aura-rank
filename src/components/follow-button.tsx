@@ -17,6 +17,12 @@ export function FollowButton({
   const [loading, setLoading] = useState(false);
 
   async function toggle() {
+    if (loading) return;
+    const previousFollowing = following;
+    const previousCount = count;
+    const optimisticFollowing = !following;
+    setFollowing(optimisticFollowing);
+    setCount((current) => Math.max(0, current + (optimisticFollowing ? 1 : -1)));
     setLoading(true);
     try {
       const response = await fetch(`/api/users/${encodeURIComponent(username)}/follow`, {
@@ -28,8 +34,14 @@ export function FollowButton({
       };
       if (response.ok) {
         setFollowing(Boolean(payload.following));
-        setCount(payload.followerCount ?? count);
+        setCount(payload.followerCount ?? previousCount);
+      } else {
+        setFollowing(previousFollowing);
+        setCount(previousCount);
       }
+    } catch {
+      setFollowing(previousFollowing);
+      setCount(previousCount);
     } finally {
       setLoading(false);
     }
