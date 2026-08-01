@@ -1,6 +1,12 @@
 "use client";
 
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { uploadPresigned } from "@vercel/blob/client";
 import { useSession } from "next-auth/react";
@@ -13,6 +19,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand";
+import { MobileCameraCapture } from "@/components/mobile-camera-capture";
 
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024;
 const MAX_DURATION = 45;
@@ -33,6 +40,20 @@ type AnalysisResult = {
   strengths: string[];
 };
 
+function subscribeMobileViewport(callback: () => void) {
+  const mediaQuery = window.matchMedia("(max-width: 767px)");
+  mediaQuery.addEventListener("change", callback);
+  return () => mediaQuery.removeEventListener("change", callback);
+}
+
+function mobileViewportSnapshot() {
+  return window.matchMedia("(max-width: 767px)").matches;
+}
+
+function serverMobileViewportSnapshot() {
+  return false;
+}
+
 export default function Upload() {
   const { data: session } = useSession();
   const [file, setFile] = useState<File | null>(null);
@@ -45,6 +66,11 @@ export default function Upload() {
   const [phase, setPhase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useSyncExternalStore(
+    subscribeMobileViewport,
+    mobileViewportSnapshot,
+    serverMobileViewportSnapshot,
+  );
 
   useEffect(
     () => () => {
@@ -62,9 +88,7 @@ export default function Upload() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  function selectVideo(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0];
-    if (!selected) return;
+  function applyVideo(selected: File) {
     setError(null);
     setResult(null);
     if (!selected.type.startsWith("video/")) {
@@ -81,6 +105,11 @@ export default function Upload() {
     setFile(selected);
     setPreviewUrl(URL.createObjectURL(selected));
     setDuration(null);
+  }
+
+  function selectVideo(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0];
+    if (selected) applyVideo(selected);
   }
 
   async function analyze() {
@@ -148,7 +177,16 @@ export default function Upload() {
   }
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <>
+      {isMobile && !previewUrl && !result && !loading ? (
+        <MobileCameraCapture onVideo={applyVideo} />
+      ) : null}
+
+      <section
+        className={`mx-auto max-w-5xl space-y-6 ${
+          !previewUrl && !result && !loading ? "hidden md:block" : ""
+        }`}
+      >
       <header className="text-center">
         <span className="eyebrow">Novo conteúdo</span>
         <h1 className="page-title mt-5">
@@ -349,7 +387,7 @@ export default function Upload() {
               </div>
               {result.status === "APPROVED" ? (
                 <Link
-                  href={`/feed#video-${result.submissionId}`}
+                  href={`/feed?video=${result.submissionId}`}
                   className="secondary-button mt-5 min-h-10 px-4 py-2"
                 >
                   Ver no feed
@@ -363,6 +401,7 @@ export default function Upload() {
           )}
         </aside>
       </div>
-    </section>
+      </section>
+    </>
   );
 }
